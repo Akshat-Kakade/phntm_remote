@@ -80,7 +80,7 @@ export class SpaceMouse {
 
     onConnect() {
         console.log('3Dconnexion NL-Proxy connected');
-        let name = 'Phntm Bridge 3D View'; // name to identify the application for the 3D mouse property panels
+        let name = 'Phntm Remote 3D View'; // name to identify the application for the 3D mouse property panels
         if (!this.proxy) {
             console.log('3Dconnexion Missing proxy instance');
             return;

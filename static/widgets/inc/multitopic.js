@@ -1,6 +1,21 @@
 import { isTouchDevice } from "lib";
 
+/**
+ * Triggered on topics change
+ * @event MultiTopicSource#event:change 
+ * @type {TopicsChangedEvent}
+ */
+
+/**
+ * This class creates a multi-topic data source used by :js:doc:`CompositePanelWidgetBase`.
+ * It also adds its UI to the :js:doc:`Panel` menu and handles user interactions.
+ */
 export class MultiTopicSource extends EventTarget {
+
+	/**
+     * @constructor
+     * @param {CompositePanelWidgetBase} widget Reference to parent :js:class:`CompositePanelWidgetBase` widget 
+     */
 	constructor(widget) {
 		super();
 
@@ -20,6 +35,16 @@ export class MultiTopicSource extends EventTarget {
 		this.menu_open = false;
 	}
 
+	/**
+	 * Add slots for max_num topics (-1=unlimited) of type msg_type
+	 * 
+	 * @param {string} msg_type Message type
+	 * @param {string} label Source label
+	 * @param {string|null} default_topic Set default topic 
+	 * @param {number} max_num Maximum number of topics for this source
+	 * @param {Callback} cb_data  Data callback for topic data
+	 * @param {Callback} cb_removed Callback for topic removed
+	 */
 	add(msg_type, label, default_topic, max_num, cb_data, cb_removed) {
 		let new_src = {
 			msg_type: msg_type,
@@ -35,6 +60,11 @@ export class MultiTopicSource extends EventTarget {
 		//this.updateSourceSlots(new_src);
 	}
 
+	/**
+	 * Register event handler, see Events above
+	 * @param {string} event 
+	 * @param {Callback} cb 
+	 */
 	on(event, cb) {
 		if (!this.event_calbacks[event]) this.event_calbacks[event] = [];
 
@@ -44,6 +74,11 @@ export class MultiTopicSource extends EventTarget {
 		this.event_calbacks[event].push(cb);
 	}
 
+	/**
+	 * Unregister event handler
+	 * @param {string} event 
+	 * @param {Callback} cb 
+	 */
 	off(event, cb) {
 		if (!this.event_calbacks[event]) {
 			return;
@@ -68,6 +103,10 @@ export class MultiTopicSource extends EventTarget {
 		});
 	}
 
+	/**
+	 * Returns true if any source topics are selected
+	 * @returns {boolean}
+	 */
 	hasSources() {
 		for (let i = 0; i < this.sources.length; i++) {
 			if (!this.sources[i].topic_slots) continue;
@@ -80,6 +119,11 @@ export class MultiTopicSource extends EventTarget {
 		return false;
 	}
 
+	/**
+	 * Returns true if at least one topic of msg_type is selected
+	 * @param {string} msg_type 
+	 * @returns {boolean}
+	 */
 	hasType(msg_type) {
 		for (let i = 0; i < this.sources.length; i++) {
 			if (this.sources[i].msg_type != msg_type) continue;
@@ -93,6 +137,10 @@ export class MultiTopicSource extends EventTarget {
 		return false;
 	}
 
+	/**
+	 * Returns all currently selected topics
+	 * @returns {string[]} Topics
+	 */
 	getSources() {
 		let topics = [];
 		for (let i = 0; i < this.sources.length; i++) {
@@ -106,6 +154,11 @@ export class MultiTopicSource extends EventTarget {
 		return topics;
 	}
 
+	/**
+	 * Returns true if the topic is selected
+	 * @param {string} topic 
+	 * @returns {boolean}
+	 */
 	topicSubscribed(topic) {
 		for (let i = 0; i < this.sources.length; i++) {
 			if (!this.sources[i].topic_slots) continue;
@@ -132,6 +185,9 @@ export class MultiTopicSource extends EventTarget {
 		}
 	}
 
+	/**
+	 * Initialize, loads selected topics from widget's panel vars (call after adding sources)
+	 */
 	init() {
 		let that = this;
 		let sources_initialsed_from_panel_vars = [];

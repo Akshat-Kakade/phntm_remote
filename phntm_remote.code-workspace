@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"js/ts.implicitProjectConfig.strictNullChecks": false,
+		"git.ignoreLimitWarning": true,
+		"workbench.colorTheme": "Solarized Dark"
+	}
+}

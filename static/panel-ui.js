@@ -1,5 +1,4 @@
 import { GraphMenu } from "./graph-menu.js";
-import { IsImageTopic, IsVideoTopic, IsFastVideoTopic } from "browser-client";
 import { Gamepad as TouchGamepad, Joystick as TouchJoystick} from "./touch-gamepad/dist/gamepad.js";
 import { GOAL_STATUS, WOBBLE_DURATION } from "const";
 import { SpaceMouse } from './input/space-mouse.js'
@@ -13,12 +12,18 @@ import {
 	msToTime,
 	formatBytes,
 	nl2br,
+	isVideoTopicStream
 } from "lib";
 import { UserButtonsServiceInput, ServiceInput_Empty } from "input/service-widgets";
 
 import { ServiceInputDialog } from "./inc/service-input-dialog.js";
 import { NodeParamsDialog } from "./inc/node-params-dialog.js";
 
+/**
+ * This class represents the panel window manager handling UI :js:doc:`Panels <Panel>`, notifications, and similar parts 
+ * of the user interaction. Under the hood, it creates all the menus and dialogs, and allows users to call ROS
+ * services or control Docker containers.
+ */
 export class PanelUI {
 	panels = {};
 
@@ -68,12 +73,34 @@ export class PanelUI {
 		};
 	}
 
-	constructor(client, grid_cell_height, input_manager, background_disconnect_sec, cdn_prefix) {
+	/**
+	 * @constructor
+	 * @param {BridgeClient} client :js:class:`BrowserClient` ref
+     * @param {string} ui_name Name of this UI
+	 * @param {number} grid_cell_height Height of grid cells
+	 * @param {InputManager} input_manager Instance of Input Manager
+	 * @param {number} background_disconnect_sec Disconnect this many sec after tab becomes inactive
+	 * @param {string} cdn_prefix CDN prefix, if used
+	 */
+	constructor(client, ui_name, grid_cell_height, input_manager, background_disconnect_sec, cdn_prefix) {
 		this.client = client;
 		this.client.ui = this;
+		this.ui_name = ui_name;
 
+		/**
+		 * True when the window is visible and has focus
+		 * @type {boolean}
+		 */
 		this.is_visible = true;
+		/**
+		 * True when the tab is sleeping after background_disconnect_sec mins in the background
+		 * @type {boolean}
+		 */
 		this.is_sleeping = false;
+		/**
+		 * When false (default), disconnects after `background_disconnect_sec` mins of tab being in the background
+		 * @type {boolean}
+		 */
 		this.run_in_background = false; // disconnects when backgrounded or computer goes to sleep
 		this.reconnection_timer = null;
 		this.disconnect_timer = null;
@@ -100,6 +127,10 @@ export class PanelUI {
 			},
 		});
 
+		/**
+		 * Reference to all active :js:class:`Panels <Panel>`
+		 * @type {object.<string, Panel>}
+		 */
 		this.panels = {};
 		this.panel_menu_on = null; //touch only
 		this.maximized_panel = null;
@@ -232,16 +263,16 @@ export class PanelUI {
 			that.updateWebrtcStatus();
 			that.updateLayout(); // robot name length affects layout
 
-			let client_version_info = client.client_version ? client.client_version : "?";
-			client_version_info = '<a href="https://github.com/PhantomCybernetics/phntm_bridge_client/commit/'+client_version_info+'" target="_blank">#' + client_version_info + '</a>';
-			if (client.ros_distro)
-				client_version_info += " @ " + client.ros_distro.charAt(0).toUpperCase() + client.ros_distro.slice(1);
-			if (client_version_info)
-				client_version_info += " ";
-
-			if (client.client_version && client.ros_distro) {
+			if (client.client_version) {
+				let client_version_info = '<a href="https://github.com/PhantomCybernetics/phntm_bridge_client/commit/'+client.client_version+'" target="_blank">#' + client.client_version + '</a>';
 				$("#bridge-version-info").html(client_version_info);
 				that.saveLastRobotClientVersionInfo(client_version_info);
+			}
+			if (client.ros_distro) {
+				let ros_distro_info = client.ros_distro.charAt(0).toUpperCase() + client.ros_distro.slice(1);
+				$("#ros-distro-info").html(ros_distro_info);
+				$("#bottom-links").addClass('has-ros-distro');
+				that.saveLastRobotROSDistroInfo(ros_distro_info);
 			}
 		});
 
@@ -272,19 +303,6 @@ export class PanelUI {
 			}
 		});
 
-		client.on("media_stream", (id_src, stream, mid) => {
-			// console.warn('Client got a stream for ' + id_src, stream);
-
-			let panel = that.panels[id_src];
-			// console.log('id_panel: '+id_src+'; panel=', panel, that.panels)
-			if (!panel) {
-				console.error("Panel " + id_src + "not found for stream " + stream.id);
-				return;
-			}
-
-			panel.setMediaStream(stream, mid);
-		});
-
 		client.on("service_returned_file", (service, file_url) => this.handleServiceFile(service, file_url));
 
 		let last_saved_name = this.loadLastRobotName();
@@ -296,6 +314,11 @@ export class PanelUI {
 		let last_client_version_info = this.loadLastRobotClientVersionInfo();
 		if (last_client_version_info)
 			$("#bridge-version-info").html(last_client_version_info);
+		let last_ros_distro_info = this.loadLastRobotROSDistroInfo();
+		if (last_ros_distro_info) {
+			$("#ros-distro-info").html(last_ros_distro_info);
+			$("#bottom-links").addClass('has-ros-distro');
+		}
 
 		window.addEventListener("resize", (event) => {
 			that.updateLayout();
@@ -314,10 +337,29 @@ export class PanelUI {
 		};
 
 		this.robot_ui_config = {};
+		/**
+		 * The battery topic specified in the phantom_bridge.yaml config file
+		 * Used for battery state display
+		 * @type {string}
+		 */
 		this.battery_topic = null;
+		/**
+		 * The docker monitor topic specified in the phantom_bridge.yaml config file
+		 * Used for Docker container state display
+		 * @type {string}
+		 */
 		this.docker_monitor_topic = null;
+		/**
+		 * Whether Docker control is enabled, set in phantom_bridge.yaml config file
+		 * @type {boolean}
+		 */
 		this.docker_control_enabled = false;
 		this.subscribed_docker_monitor_topic = null;
+		/**
+		 * The Wi-fi topic specified in the phantom_bridge.yaml config file
+		 * Used for Wi-Fi signal quality display
+		 * @type {string}
+		 */
 		this.wifi_topic = null;
 		this.battery_shown = this.loadLastRobotBatteryShown();
 		this.introspection_control_shown = this.loadLastRobotIntrospectionControlShown();
@@ -803,11 +845,11 @@ export class PanelUI {
 		if (!this.client.name) return;
 
 		if (this.is_sleeping) {
-			document.title = "{Zzz) " + this.client.name + " @ PHNTM Bridge";
+			document.title = "{Zzz) " + this.client.name + ' @ ' + this.ui_name;
 		} else if (this.client.is_waiting) {
-			document.title = "{Waiting) " + this.client.name + " @ PHNTM Bridge";
+			document.title = "{Waiting) " + this.client.name + ' @ ' + this.ui_name;
 		}  else {
-			document.title = this.client.name + " @ PHNTM Bridge";
+			document.title = this.client.name + ' @ ' + this.ui_name;
 		}
 	}
 
@@ -896,6 +938,12 @@ export class PanelUI {
 		}
 	}
 
+	/**
+	 * Displays a static stripe with a message in the top of the screen
+	 * @param {string} msg_html Message to show
+	 * @param {string} message_class CSS class to add, use 'error' for errors
+	 * @param {string} save_closed_state_id Of of this message to use for storing its 'closed' state
+	 */
 	showPageMessage(msg_html, message_class, save_closed_state_id) {
 
 		if (save_closed_state_id && localStorage.getItem(save_closed_state_id)) {
@@ -1328,8 +1376,7 @@ export class PanelUI {
 					let topic_ids = Object.keys(node.publishers);
 					topic_ids.forEach((id_topic) => {
 						let msg_type = node.publishers[id_topic].msg_type;
-						if (IsVideoTopic(msg_type)) {
-							// all image topics minus compressed
+						if (isVideoTopicStream(msg_type, false)) { // all image topics minus compressed
 							cameras.push({
 								src_id: id_topic,
 								msg_type: msg_type,
@@ -1535,8 +1582,6 @@ export class PanelUI {
 
 	dockerMenuFromMonitorMessage(msg) {
 
-		console.log('dockerMenuFromMonitorMessage', msg);
-
 		let host = msg.header.frame_id ? msg.header.frame_id : "phntm_agent";
 
 		if (!this.docker_hosts[host]) {
@@ -1702,6 +1747,15 @@ export class PanelUI {
 			});
 	}
 
+	/**
+	 * Displays a modal dialog for selecting a single topic of a specific msg_type
+	 * Used by `MultiTopicSource`
+	 * @param {string} msg_type Message type filter
+	 * @param {string[]} exclude_topics Topics to exclude
+	 * @param {Callback} on_select_cb Called on selection
+	 * @param {Callback} on_cancel_cb Called on cancel
+	 * @param {jQuery} align_with_el Align with this element on screen
+	 */
 	topicSelectorDialog(
 		msg_type,
 		exclude_topics,
@@ -2175,6 +2229,15 @@ export class PanelUI {
 		}
 	}
 
+	/**
+	 * Creates a modal dialog that asks for user's confirmation
+	 * @param {string} label HTML of the dialog
+	 * @param {string} css_class CSS class to add
+	 * @param {string} confirm_label Confirm button label
+	 * @param {Callback} confirm_cb Called on confirmation
+	 * @param {string} cancel_label Cancel button label
+	 * @param {Callback} cancel_cb Called on cancel
+	 */
 	confirmDialog(label, css_class, confirm_label, confirm_cb, cancel_label, cancel_cb) {
 		function closeDialog() {
 			$("BODY").removeClass("no-scroll");
@@ -2391,6 +2454,16 @@ export class PanelUI {
 		}
 	}
 
+	/**
+	 * Creates a new panel
+	 * @param {string} id_source Topic, Widget or Stream ID
+	 * @param {number} w Width in grid cells
+	 * @param {number} h Height in grid cells
+	 * @param {number} x Left in grid cells
+	 * @param {number} y Top in grid cells
+	 * @param {object} panel_vars Panel vars
+	 * @returns :js:class:`Panel`
+	 */
 	makePanelFromConfig(id_source, w, h, x = null, y = null, panel_vars = {}) {
 		if (this.panels[id_source]) return this.panels[id_source];
 
@@ -2413,51 +2486,10 @@ export class PanelUI {
 
 		results.forEach((res) => {
 			if (res.type != "inbound-rtp" || !res.trackIdentifier) return; // continue
-
 			panel_ids.forEach((id_panel) => {
 				let panel = that.panels[id_panel];
-				if (!panel.mid)
-					return;
-
-				if (panel.mid == res.mid) {
-
-					let stats_string = "";
-					stats_string += `${res.timestamp}<br>`;
-					let fps = 0;
-					Object.keys(res).forEach((k) => {
-						if (k == "framesPerSecond") {
-							fps = res[k];
-						}
-						let mark_change = false;
-						if (k == "packetsLost") {
-							mark_change = res[k] != panel.last_video_packets_lost;
-							panel.last_video_packets_lost = res[k];
-						}
-						if (k == "framesDropped") {
-							mark_change = res[k] != panel.last_video_frames_dropped;
-							panel.last_video_frames_dropped = res[k];
-						}
-						if (k == "freezeCount") {
-							mark_change = res[k] != panel.last_video_freeze_count;
-							panel.last_video_freeze_count = res[k];
-						}
-						if (k !== "timestamp" && k !== "type" && k !== "id") {
-							if (typeof res[k] === "object") {
-								stats_string += `${k}: ${JSON.stringify(res[k])}<br>`;
-							} else {
-								if (mark_change) stats_string += `${k}: <span class="change">${res[k]}</span><br>`;
-								else stats_string += `${k}: ${res[k]}<br>`;
-							}
-						}
-					});
-
-					if (panel.display_widget) {
-						panel.display_widget.last_video_stats_string = stats_string;
-					}
-
-					panel.fps = fps;
-
-					panel.updateFps();
+				if (panel.display_widget && panel.display_widget.updateVideoStats) {
+					panel.display_widget.updateVideoStats(res);
 				}
 			});
 		});
@@ -2852,6 +2884,15 @@ export class PanelUI {
 
 	loadLastRobotClientVersionInfo() {
 		let val = localStorage.getItem("last-robot-client-version-info:" + this.client.id_robot);
+		return val;
+	}
+
+	saveLastRobotROSDistroInfo(val) {
+		localStorage.setItem("last-robot-ros-distro:" + this.client.id_robot, val);
+	}
+
+	loadLastRobotROSDistroInfo() {
+		let val = localStorage.getItem("last-robot-ros-distro:" + this.client.id_robot);
 		return val;
 	}
 
@@ -3612,6 +3653,13 @@ export class PanelUI {
 		}
 	}
 
+	/**
+	 * Displays a fading notification message with optional detail
+	 * @param {string} msg_html Header HTML
+	 * @param {string} css_class CSS class to use, 'error' for errors
+	 * @param {string} detail_html = null Detail HTML
+	 * @returns {JQuery} Reference to the message DOM element
+	 */
 	showNotification(msg_html, css_class, detail_html = null) {
 		let msg_el = $('<span class="msg' + (css_class ? " " + css_class : "") + '">' +
 					       '<span class="icon"></span><span class="title">' + msg_html + '</span>' +

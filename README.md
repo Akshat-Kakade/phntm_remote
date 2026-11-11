@@ -1,14 +1,14 @@
-# Phantom Bridge UI
+# Phantom Remote
 
-This package contains Web UI for the Phantom Bridge and a web server to serve it.
+This package contains Phantom Remote and a web server to serve it.
 
 The web server itself does not connect to anything, it merely servers semi-static HTML and JavaScript to users. The UI in the web browser establishes connection to Bridge Server via Socket.io, and to the Bridge Client node on a robot via WebRTC P2P connection.
 
 You can fork this repository and host it yourself to customize the default UI provided. The configuration file specifies which Bridge Server shall the client connect to.
 
-![Infrastructure map](https://raw.githubusercontent.com/PhantomCybernetics/phntm_bridge_docs/refs/heads/main/img/Architecture_UI.svg)
+![Infrastructure map](https://raw.githubusercontent.com/PhantomCybernetics/phntm_docs/refs/heads/main/img/Architecture_UI.svg)
 
-# Install Bridge UI
+# Install Phantom Remote
 
 ### Install Bun
 
@@ -20,14 +20,14 @@ Last tested 1.2.18
 
 ```bash
 cd ~
-git clone git@github.com:PhantomCybernetics/phntm_bridge_ui.git phntm_bridge_ui
-cd phntm_bridge_ui
+git clone git@github.com:PhantomCybernetics/phntm_remote.git phntm_remote
+cd phntm_remote
 bun install
 ```
 
-### Register a new App on the Bridge Server
+### Register New App On Bridge Server
 
-To Phantom Bridge, this UI represents an App, individual browser clients running Web UI are considered to be App instances. New App needs to register with the Bridge Server it intends to use. Use the Phantom Bridge Registration Utility as shown below, select registration of a new App, then follow prompts:
+To Phantom Bridge, Remote represents an App, individual browser clients running Web UI are considered to be App instances. New App needs to register with the Bridge Server it intends to use. Use the Bridge Registration Utility as shown below, select registration of a new App, then follow prompts:
 ```bash
 sudo apt install curl
 bash <(curl -s https://register.phntm.io/register.sh)
@@ -36,29 +36,29 @@ A new APP_ID/APP_KEY pair will be generated and stored in a .json file for later
 
 ### Create config file
 
-Create new config file e.g. `~/phntm_bridge_ui/config.jsonc`, use [./config.example.jsonc](./config.example.jsonc) as a starting point.
+Create new config file e.g. `~/phntm_remote/config.jsonc`, use [./config.example.jsonc](./config.example.jsonc) as a starting point.
 
 ### Add system service to your systemd
 
 ```bash
-sudo vim /etc/systemd/system/phntm_bridge_ui.service
+sudo vim /etc/systemd/system/phntm_remote.service
 ```
 
 ...and paste:
 
 ```
 [Unit]
-Description=phntm bridge_ui service
+Description=phntm phntm_remote service
 After=network.target
 
 [Service]
-ExecStart=/home/ubuntu/phntm_bridge_ui/run.sh
+ExecStart=/home/ubuntu/phntm_remote/run.sh
 Restart=always
 User=root
 Environment=NODE_ENV=production
-WorkingDirectory=/home/ubuntu/phntm_bridge_ui/
-StandardOutput=append:/var/log/phntm_bridge_ui.log
-StandardError=append:/var/log/phntm_bridge_ui.err.log
+WorkingDirectory=/home/ubuntu/phntm_remote/
+StandardOutput=append:/var/log/phntm_remote.log
+StandardError=append:/var/log/phntm_remote.err.log
 
 [Install]
 WantedBy=multi-user.target
@@ -74,12 +74,12 @@ sudo systemctl daemon-reload
 We read git commit and tags as root to display in the UI. The repo must be added to global safe.directory like this:
 
 ``` bash
-sudo git config --global --add safe.directory /home/ubuntu/phntm_bridge_ui
+sudo git config --global --add safe.directory /home/ubuntu/phntm_remote
 ```
 
 ### Launch
 
 ```bash
-sudo systemctl start phntm_bridge_ui.service
-sudo systemctl enable phntm_bridge_ui.service # will launch on boot
+sudo systemctl start phntm_remote.service
+sudo systemctl enable phntm_remote.service # will launch on boot
 ```

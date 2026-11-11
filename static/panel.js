@@ -1,15 +1,27 @@
-import { IsImageTopic } from "browser-client";
 import * as THREE from "three";
-import { linkifyURLs, escapeHtml, isTouchDevice, isSafari } from "lib";
+import { linkifyURLs, escapeHtml, isTouchDevice, isSafari, isVideoTopicStream } from "lib";
 
 BigInt.prototype.toJSON = function () {
 	return this.toString();
 }; // fixes Bigint serialization issue in JSON.stringify
 
+/**
+ * This class represents a single panel of :doc:`PanelUI` and handles its user interface elements and user interactions.
+ * Panel consists of the main widget area, can display raw message source, handles the menu, title bar, and optional extra buttons.
+ * It also offers a mechanism to store and load custom variables used by the widgets.
+ */
 export class Panel {
 	ui = null;
 
+	/**
+	 * Topic, Widget ID,  or Stream ID
+	 * @type {string}
+	 */
 	id_source = null;
+	/**
+	 * ID of the media stream used by the panel
+	 * @type {string|null} 
+	 */
 	id_stream = null;
 	mid = null; // can't use trackIdentifier bcs Firefox overwrites it
 	msg_type = null; //str
@@ -20,13 +32,25 @@ export class Panel {
 	// msg_reader = null;
 	max_height = 0;
 
+	/**
+	 * Reference to the panel's widget, :js:class:`SingleTypePanelWidgetBase` or :js:class:`CompositePanelWidgetBase`
+	 * @type {SingleTypePanelWidgetBase | CompositePanelWidgetBase} 
+	 */
 	display_widget = null;
 	grid_widget = null;
 
 	initiated = false;
 	init_data = null;
 	// resizeEventHandler = null;
+	/**
+	 * True when raw message source is visible
+	 * @type {boolean}
+	 */
 	src_visible = false;
+	/**
+	 * True when FPS label is visible
+	 * @type {boolean} 
+	 */
 	fps_visible = false;
 	show_fps_menu_label = "Show FPS";
 	last_fps_updated = null;
@@ -39,6 +63,51 @@ export class Panel {
 	editing = false;
 	//const event = new Event("build");
 
+	/**
+	 * True when panel is maximized
+	 * @type {boolean}
+	 */
+	maximized = false;
+
+	/**
+	 * Panel number, useful for addressing panel's DOM elements (changes between page loads)
+	 * @type {number}
+	 */
+	n = 0;
+
+	/**
+	 * True when panel is paused - no updates should be performed
+	 * @type {boolean}
+	 */
+	paused = false;
+
+	/**
+	 * Reference to :js:class:`PanelUI`
+	 * @type {PanelUI}
+	 */
+	ui = null;
+
+	/**
+	 * Height available to the widget in pixels
+	 * @type {number}
+	 */
+	widget_height = 0;
+
+	/**
+	 * Width available to the widget in pixels
+	 * @type {number}
+	 */
+	widget_width = 0;
+
+	/**
+	 * @param {string} id_source Topic, Widget ID, or Stream ID
+	 * @param {PanelUI} ui :js:class:`PanelUI` reference
+	 * @param {number} w Width in grid cells
+	 * @param {number} h Height in grid cells
+	 * @param {number} x Left in grid cells
+	 * @param {number} y Top in grid cells
+	 * @param {object} panel_vars Panel vars
+	 */
 	constructor(id_source, ui, w, h, x = null, y = null, panel_vars = {}) {
 		this.ui = ui;
 		let panels = ui.panels;
@@ -65,27 +134,16 @@ export class Panel {
 		let title = "Loading...";
 		if (id_source.indexOf('/') !== -1)
 			title = id_source;
-		let html = '<div class="grid_panel" data-source="' + id_source + '">' +
-				       '<h3 class="panel-title" id="panel_title_' + this.n + '" title="' + id_source + '">' + title + '</h3>' +
-				   	   '<span class="notes"></span>' +
-				   	   '<span class="panel_btns">' +
-					       '<span class="panel-btns-gradient"></span>' +
-						   '<spam class="panel-btns-content" id="panel_btns_' +this.n + '"></span>' +
-					   '</span>' +
-				   	   '<div class="monitor_menu prevent-select" id="monitor_menu_' + this.n + '">' +
-					       '<div class="monitor_menu_content" id="monitor_menu_content_' + this.n + '"></div>' +
-				   	   '</div>' +
-				   	   '<div class="panel_content_space" id="panel_content_space_' + this.n + '">' +
-					   '<div class="panel_widget' + (this.src_visible ? ' source_visible' : '') + '" id="panel_widget_' + this.n + '"></div>' +
-					   '<div class="panel_source' + (this.src_visible ? ' enabled' : '') + '" id="panel_source_' + this.n + '">Waiting for data...</div>' +
-					   '<div class="panel_fps" id="panel_fps_' + this.n + '"></div>' +
-					   '<div class="cleaner"></div>' +
-				   '</div>';
+
+		let base_html = '<div class="grid_panel" id="grid_panel_' + this.n+  '" data-source="' + id_source + '">'
+					  + '  <h3 class="panel-title" id="panel_title_' + this.n + '" title="' + id_source + '">' + title + '</h3>'
+					  + '</div>';
 
 		let grid_widget_opts = {
 			w: w, h: h,
 			minW: 1, minH: 4,
-			content: html,
+			content: base_html, // wrapper and handle el as html
+			//<div class="cleaner"></div> ??
 			lazyLoad: false
 		};
 		if (x != null && x != undefined) grid_widget_opts.x = x;
@@ -109,18 +167,37 @@ export class Panel {
 		console.log("Adding widget " + id_source + " w grid opts: ", grid_widget_opts);
 		this.grid_widget = grid.addWidget(grid_widget_opts);
 		$(this.grid_widget).addClass("loading");
+		this.panel_el = $("#grid_panel_" + this.n);
+
+		this.title_el = $('#panel_title_' + this.n);
+
+		this.panel_content_space_el = $('<div class="panel_content_space" id="panel_content_space_' + this.n + '">');
+		this.panel_content_space_el.appendTo(this.panel_el);
+
+		this.menu_el = $('<div class="monitor_menu prevent-select" id="monitor_menu_' + this.n + '">');
+		this.menu_content_el = $('<div class="monitor_menu_content" id="monitor_menu_content_' + this.n + '"></div>');
+		this.menu_content_el.appendTo(this.menu_el);
+		this.menu_el.appendTo(this.panel_el);
+
+		let panel_btns_cont_el = $('<span class="panel_btns"><span class="panel-btns-gradient"></span></span>');
+		this.panel_btns_el = $('<span class="panel-btns-content" id="panel_btns_' +this.n + '"></span>');
+		this.panel_btns_el.appendTo(panel_btns_cont_el);
+		panel_btns_cont_el.appendTo(this.panel_el);
+
+		this.widget_el = $('<div class="panel_widget' + (this.src_visible ? ' source_visible' : '') + '" id="panel_widget_' + this.n + '"></div>');
+		this.widget_el.appendTo(this.panel_content_space_el);
+
+		this.source_el = $('<div class="panel_source' + (this.src_visible ? ' enabled' : '') + '" id="panel_source_' + this.n + '">Waiting for data...</div>');
+		this.source_el.appendTo(this.panel_content_space_el);
+
+		this.fps_el = $('<div class="panel_fps" id="panel_fps_' + this.n + '"></div>');
+		this.fps_el.appendTo(this.panel_content_space_el);
+		
+		this.msg_types_el = null;
+		// $('<div class="cleaner"></div>').appendTo(this.panel_el);
 
 		if (id_source.indexOf('/') === 0) // topic widget
 			this.ui.client.onTopicData(id_source, this.onDataContextWrapper);
-
-		// setTimeout(() => {
-		// 	panels[id_source].onResize();
-		// }, 300); // resize at the end of the animation
-
-		this.panel_btns_el = $("#panel_btns_" + this.n);
-		this.fps_el = $("#panel_fps_" + this.n);
-		this.source_el = $("#panel_source_" + this.n);
-		this.widget_el = $("#panel_widget_" + this.n);
 
 		if (!this.edit_btn) {
 			// pause panel updates
@@ -149,9 +226,7 @@ export class Panel {
 		});
 
 		this.edit_timeout = null;
-		let title_el = document.getElementById("panel_title_" + this.n);
-		this.title_el = $(title_el);
-		title_el.addEventListener("touchstart", (ev) => {
+		this.title_el[0].addEventListener("touchstart", (ev) => {
 			if (that.editing) return;
 			console.log("Touch start " + id_source);
 			that.edit_timeout = window.setTimeout(() => {
@@ -165,12 +240,12 @@ export class Panel {
 			}, 2000); // hold panel label for 2s to edit
 		}, { passive: true });
 
-		title_el.addEventListener('contextmenu', function(e) { // prevents android menu from showing 
+		this.title_el[0].addEventListener('contextmenu', function(e) { // prevents android menu from showing 
 			e.preventDefault();
 			return false;
 		}, false);
 
-		title_el.addEventListener("touchend", () => {
+		this.title_el[0].addEventListener("touchend", () => {
 			if (that.editing) return;
 			if (that.edit_timeout) {
 				window.clearTimeout(that.edit_timeout);
@@ -182,7 +257,7 @@ export class Panel {
 		this.last_content_space_click = null;
 		this.maximized = false;
 
-		$("#panel_content_space_" + this.n)[0].addEventListener("touchstart", (ev) => {
+		this.panel_content_space_el[0].addEventListener("touchstart", (ev) => {
 			if (that.editing) return;
 
 			if (ev.touches.length != 1) {
@@ -199,9 +274,6 @@ export class Panel {
 			that.last_content_space_click = Date.now();
 		}, { passive: true });
 
-		let menu_content_el = document.getElementById("monitor_menu_" + this.n);
-		this.menu_el = $(menu_content_el);
-		this.menu_content_el = $("#monitor_menu_content_" + this.n);
 		this.menu_el.on("click", () => {
 			if (!isTouchDevice()) return;
 			that.ui.panelMenuTouchToggle(that);
@@ -213,11 +285,10 @@ export class Panel {
 			});
 		}
 
-		//prevent window scroll from closin this menu
+		//prevent window scroll from closing this menu
 		this.menu_content_el.on('touchmove', {passive: false}, (ev) => {
 		    ev.stopPropagation();
 		});
-
 
 	}
 
@@ -233,7 +304,7 @@ export class Panel {
 		}
 
 		if (msg_type && !this.initiated && this.ui.config_received) {
-			if (msg_type == 'video' || IsImageTopic(msg_type)) {
+			if (msg_type == 'video' || isVideoTopicStream(msg_type)) {
 				this.fps_visible = this.getPanelVarAsBool('fps', true);
 			}
 
@@ -261,33 +332,35 @@ export class Panel {
 
 				// widget by topic type
 				this.msg_type = msg_type;
-				if (msg_type != "video") {
+				if (msg_type != "video" && this.msg_types_el) {
 					this.msg_type_class = this.ui.client.findMessageType(this.msg_type);
-					$("#panel_msg_types_" + this.n).html(this.msg_type ? this.msg_type : "");
+					const msg_type_link = this.msg_types_el.find('A').first();
+					msg_type_link.html(this.msg_type ? this.msg_type : "");
 
 					// if message type not loaded yet, wait for 3s, then display error
 					if (this.msg_type_class == null) {
 						
 						let that = this;
 						function delayedDisplayMessageTypeError() {
-							$("#panel_msg_types_" + that.n).addClass("err");
-							$("#panel_source_" + that.n).html('<span class="error">Message type ' + that.msg_type + " not loaded</span>");
+							msg_type_link.addClass("err");
+							that.source_el.html('<span class="error">Message type ' + that.msg_type + " not loaded</span>");
 						}
 						let delayed_error_timeout = setTimeout(
 							delayedDisplayMessageTypeError,
 							3000,
 						);
 						function updateOnMessageTypesChanged() {
-							that.msg_type_class = that.ui.client.findMessageType(
-								that.msg_type,
-							);
+							that.msg_type_class = that.ui.client.findMessageType(that.msg_type);
 							if (that.msg_type_class == null) return;
 							clearTimeout(delayed_error_timeout);
 							delayed_error_timeout = null;
 							that.ui.client.off("defs_updated", updateOnMessageTypesChanged); //only once
-							console.log("Redrawing panel for " + that.id_source);
-							$("#panel_msg_types_" + that.n).removeClass("err");
-							$("#panel_source_" + that.n).html("Waiting for data...");
+
+							if (msg_type_link.hasClass('err')) {
+								console.log("Redrawing panel for " + that.id_source);
+								msg_type_link.removeClass("err");
+								that.source_el.html("Waiting for data...");
+							}
 						}
 						this.ui.client.on("defs_updated", updateOnMessageTypesChanged); // redraw on defs received
 					}
@@ -381,6 +454,12 @@ export class Panel {
 		this.onResize();
 	}
 
+	/**
+	 * Get panel variable as a boolean
+	 * @param {string} var_name 
+	 * @param {boolean} default_value 
+	 * @returns {boolean}
+	 */
 	getPanelVarAsBool(var_name, default_value) {
 		this.panel_vars_defaults[var_name] = default_value ? '1' : '0';
 		if (this.panel_vars[var_name] === undefined)
@@ -388,6 +467,11 @@ export class Panel {
 		return parseInt(this.panel_vars[var_name]) ? true : false;
 	}
 
+	/**
+	 * Store panel variable as a boolean
+	 * @param {string} var_name 
+	 * @param {boolean} value 
+	 */
 	storePanelVarAsBool(var_name, value) {
 		value = value ? '1' : '0';
 		let change = this.panel_vars[var_name] !== value;
@@ -398,11 +482,22 @@ export class Panel {
 			this.storePanelVarsAsync();
 	}
 
+	/**
+	 * Get panel variable as a integer
+	 * @param {string} var_name 
+	 * @param {number} default_value 
+	 * @returns {number}
+	 */
 	getPanelVarAsInt(var_name, default_value) {
 		this.panel_vars_defaults[var_name] = '' + default_value;
 		return this.panel_vars[var_name] !== undefined ? parseInt(this.panel_vars[var_name]) : default_value;
 	}
 
+	/**
+	 * Store panel variable as a integer
+	 * @param {string} var_name 
+	 * @param {number} value 
+	 */
 	storePanelVarAsInt(var_name, value) {
 		value = '' + value;
 		let change = this.panel_vars[var_name] !== value;
@@ -413,11 +508,23 @@ export class Panel {
 			this.storePanelVarsAsync();
 	}
 
+	/**
+	 * Get panel variable as a float
+	 * @param {string} var_name 
+	 * @param {number} default_value 
+	 * @returns {number}
+	 */
 	getPanelVarAsFloat(var_name, default_value) {
 		this.panel_vars_defaults[var_name] = '' + default_value;
 		return this.panel_vars[var_name] !== undefined ? parseFloat(this.panel_vars[var_name]) : default_value;
 	}
 
+	/**
+	 * Store panel variable as a float, only *precision* decimal points are kept
+	 * @param {string} var_name 
+	 * @param {number} value 
+	 * @param {number} precision = 3
+	 */
 	storePanelVarAsFloat(var_name, value, precision=3) {
 		value = '' + value.toFixed(precision);
 		let change = this.panel_vars[var_name] !== value;
@@ -428,11 +535,22 @@ export class Panel {
 			this.storePanelVarsAsync();
 	}
 
+	/**
+	 * Get panel variable as a string
+	 * @param {string} var_name 
+	 * @param {string} default_value 
+	 * @returns {string}
+	 */
 	getPanelVarAsString(var_name, default_value) {
 		this.panel_vars_defaults[var_name] = '' + default_value;
 		return this.panel_vars[var_name] !== undefined ? this.panel_vars[var_name] : default_value;
 	}
 
+	/**
+	 * Store panel variable as a string
+	 * @param {string} var_name 
+	 * @param {string} value 
+	 */
 	storePanelVarAsString(var_name, value) {
 		value = '' + value;
 		let change = this.panel_vars[var_name] !== value;
@@ -443,6 +561,12 @@ export class Panel {
 			this.storePanelVarsAsync();
 	}
 
+	/**
+	 * Get panel variable as an array of strings
+	 * @param {string} var_name 
+	 * @param {string[]} default_value 
+	 * @returns {string[]}
+	 */
 	getPanelVarAsStringArray(var_name, default_value) {
 		this.panel_vars_defaults[var_name] = default_value.join(',');
 		if (this.panel_vars[var_name] === undefined)
@@ -453,6 +577,11 @@ export class Panel {
 		return parts;
 	}
 	
+	/**
+	 * Store panel variable as an array of strings
+	 * @param {string} var_name 
+	 * @param {string[]} value 
+	 */
 	storePanelVarAsStringArray(var_name, value) {
 		value = value.join(',');
 		let change = this.panel_vars[var_name] !== value;
@@ -463,6 +592,12 @@ export class Panel {
 			this.storePanelVarsAsync();
 	}
 
+	/**
+	 * Get panel variable as a THREE.Vector3
+	 * @param {string} var_name 
+	 * @param {THREE.Vector3} default_value 
+	 * @returns {THREE.Vector3}
+	 */
 	getPanelVarAsVector3(var_name, default_value) {
 		if (this.panel_vars[var_name] === undefined)
 			return default_value;
@@ -478,6 +613,12 @@ export class Panel {
 		);
 	}
 
+	/**
+	 * Store panel variable as a THREE.Vector3, only *precision* decimal points are kept
+	 * @param {string} var_name 
+	 * @param {THREE.Vector3} value 
+	 * @param {number} precision = 3 
+	 */
 	storePanelVarAsVector3(var_name, value, precision=3) {
 		value = value.x.toFixed(precision) + ',' + value.y.toFixed(precision) + ',' + value.z.toFixed(precision);
 		let change = this.panel_vars[var_name] !== value;
@@ -488,7 +629,12 @@ export class Panel {
 			this.storePanelVarsAsync();
 	}
 
-
+	/**
+	 * Get panel variable as an array of floats
+	 * @param {string} var_name 
+	 * @param {number[]} default_value 
+	 * @returns {number[]}
+	 */
 	getPanelVarAsFloatArray(var_name, default_value) {
 		if (this.panel_vars[var_name] === undefined)
 			return default_value;
@@ -504,6 +650,12 @@ export class Panel {
 		return ret;
 	}
 
+	/**
+	 * Store panel variable as an array of floats, only *precision* decimal points are kept
+	 * @param {string} var_name 
+	 * @param {number[]} value 
+	 * @param {number} precision 
+	 */
 	storePanelVarAsFloatArray(var_name, value, precision=3) {
 		let s = value.map((x) => {
 			if (x === '' || x === null)
@@ -534,10 +686,17 @@ export class Panel {
 		this.ui.updateUrlHash();
 	}
 
+	/**
+	 * Return all defined panel vars for this panel
+	 * @returns {object}
+	 */
 	getPanelVars() {
 		return this.panel_vars;
 	}
 
+	/**
+	 * Toggles the panel's paused state
+	 */
 	pauseToggle() {
 		this.paused = !this.paused;
 		console.log("Panel updates paused " + this.paused);
@@ -554,6 +713,10 @@ export class Panel {
 		}
 	}
 
+	/**
+	 * Call this to manually update FPS count of the panel; used by :js:doc:`CompositePanelWidgetBase`
+	 * @param {boolean} count_frame = true
+	 */
 	updateFps(count_frame = true) {
 		if (this.paused) return;
 
@@ -612,6 +775,9 @@ export class Panel {
 		}, 0);
 	};
 
+	/**
+	 * Call this to explicitly rebuild the panel's menu
+	 */
 	updateMenu() {
 		console.log("Setting up panel menu of " + this.id_source + "; msg_type=" + this.msg_type);
 
@@ -620,17 +786,16 @@ export class Panel {
 
 		if (this.msg_type != null && this.msg_type != "video") {
 			// message type info dialog
-			let msg_types_el = $('<div class="menu_line panel_msg_types_line"><a href="#" id="panel_msg_types_' + this.n + '" class="msg_types" title="View message type definition">' + this.msg_type + "</a></div>");
-			msg_types_el.click(function (ev) {
+			this.msg_types_el = $('<div class="menu_line panel_msg_types_line"><a href="#" id="panel_msg_types_' + this.n + '" class="msg_types" title="View message type definition">' + this.msg_type + "</a></div>");
+			this.msg_types_el.click(function (ev) {
 				that.ui.messageTypeDialog(that.msg_type);
-
 				ev.cancelBubble = true;
 				ev.preventDefault();
 			});
-			els.push(msg_types_el);
+			els.push(this.msg_types_el);
 
 			// display source for widgets
-			if (this.display_widget && !IsImageTopic(this.msg_type)) {
+			if (this.display_widget && !isVideoTopicStream(this.msg_type)) {
 				let show_source_el = $('<div class="menu_line" id="display_panel_source_link_' + this.n +'"><label for="display_panel_source_' + this.n + '" class="display_panel_source_label" id="display_panel_source_label_' + this.n + '"><input type="checkbox" id="display_panel_source_' + this.n + '" class="panel_display_source"' + (this.src_visible ? " checked" : "") + ' title="Display source data"> Show source data</label></div>');
 				let show_source_cb = show_source_el.find(".panel_display_source");
 				show_source_cb.change(function (ev) {
@@ -664,8 +829,8 @@ export class Panel {
 			}
 		} else if (this.msg_type == "video") {
 			// message type info dialog
-			let msg_types_el = $('<div class="menu_line panel_msg_types_line"><span class="msg_types">Video/H.264</span></div>');
-			els.push(msg_types_el);
+			this.msg_types_el = $('<div class="menu_line panel_msg_types_line"><span class="msg_types">Video/H.264</span></div>');
+			els.push(this.msg_types_el);
 		}
 
 		// fps toggle button
@@ -950,71 +1115,6 @@ export class Panel {
 
 	onStream(stream) {
 		console.log("Got stream for " + this.id_source + ": ", stream);
-	}
-
-
-	setMediaStream(stream = null, mid=null) {
-		if (!stream && !this.id_stream) {
-			console.debug("No media stream given, nor set for panel yet");
-			return;
-		}
-		if (stream)
-			this.id_stream = stream.id;
-		if (mid)
-			this.mid = mid; // can't use trackIdentifier bcs Firefox overwrites it
-
-		let video_el = document.getElementById("panel_video_" + this.n);
-		if (!video_el) {
-			console.log("Panel video element #panel_video_" + this.n + " not ready yet");
-			return;
-		}
-		if (!stream && this.ui.client.open_media_streams[this.id_stream])
-			stream = this.ui.client.open_media_streams[this.id_stream].stream;
-		if (!stream) {
-			console.error("Stream " + this.id_stream + " not an object", stream);
-			return;
-		}
-		if (!stream.active) {
-			console.error("Stream " + this.id_stream + " inactive", stream);
-			return;
-		}
-
-		// stream.getTracks().forEach(track => {
-		//     console.debug('setMediaStream: Stream track'+track.id+'; readyState='+track.readyState, track);
-		// });
-
-		let that = this;
-		function trySet() {
-			try {
-				if (video_el.srcObject === stream) {
-					console.log(
-						"Stream identical for " + that.id_stream + ", ignoring",
-						stream,
-					);
-				} else {
-					console.warn(
-						"Assigning stream " + that.id_stream + " to panel",
-						stream,
-					);
-					console.log(
-						"PC iceConnectionState=" +
-							that.ui.client.pc.iceConnectionState +
-							"; video.el readyState=" +
-							video_el.readyState,
-					);
-					video_el.srcObject = stream;
-				}
-			} catch (e) {
-				console.error(
-					"Trying to set stream for " + that.id_stream + " threw an exception",
-					e,
-				);
-			}
-		}
-
-		window.setTimeout(() => {
-			trySet();
-		}, 0);
 	}
 
 	close() {

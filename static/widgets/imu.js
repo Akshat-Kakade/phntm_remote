@@ -73,17 +73,17 @@ export class ImuWidget extends SingleTypePanelWidgetBase {
 		const ambience = new THREE.AmbientLight(0x202020); // soft white light
 		this.scene.add(ambience);
 
-		const gridHelper = new THREE.GridHelper(10, 10);
-		this.scene.add(gridHelper);
+		const grid_helper = new THREE.GridHelper(10, 10);
+		this.scene.add(grid_helper);
 
 		const cube_geometry = new THREE.BoxGeometry(1, 1, 1);
 		const cube_material = new THREE.MeshStandardMaterial({ color: 0x00ff00, transparent:true, opacity:0.8 });
 		this.rot_cube = new THREE.Mesh(cube_geometry, cube_material);
-		const axesHelper = new AxesHelper2(5, 2);
-		axesHelper.scale.set(1, 1, 1); //show z forward like in ROS
-		// axesHelper.material.depthTest = false;
-		// axesHelper.material.depthWrite = false;
-		this.rot_cube.add(axesHelper);
+		const axes_helper = new AxesHelper2(5, 2);
+		axes_helper.scale.set(1, 1, 1); //show z forward like in ROS
+		// axes_helper.material.depthTest = false;
+		// axes_helper.material.depthWrite = false;
+		this.rot_cube.add(axes_helper);
 		this.imu_space.add(this.rot_cube);
 
 		this.imu_space.add(this.camera);

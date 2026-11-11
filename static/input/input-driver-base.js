@@ -1,16 +1,47 @@
+/**
+ * Extend this class to :ref:`implement a custom input driver <implementing-custom-input-drivers>` as outlined in the code snippet below.
+ * A working example - driver generating Bool messages - can be found `in the Extras repository
+ * <https://github.com/PhantomCybernetics/phntm_remote_extras/blob/main/examples/input-drivers/example-bool-input-driver.js>`_
+ * and also :doc:`live in our demos </remote/demos/>` (switch to the `Bool Test` profile in the `Input Manager`). 
+ */
 export class InputDriverBase {
 
+	/**
+	 * Driver label displayed in the Input Manager
+	 * @static
+	 * @type {string}
+	 */
 	static LABEL = "InputDriver"; // override these
 	
 	msg_type = ""; 
 	num_axes = 10;
 	num_buttons = 10;
 
+	/**
+	 * @constructor
+	 * @param {InputManager} input_manager Input Manager ref
+	 */
 	constructor(input_manager) {
+		/**
+		 * Reference to the Input Manager
+		 * @type {InputManager}
+		 */
 		this.input_manager = input_manager;
 
+		/**
+		 * Topic to output control messages to
+		 * @type {string}
+		 */
 		this.output_topic = "/user_input"; //override this
+		/**
+		 * Reference to :js:doc:`BrowserClient`
+		 * @type {BrowserClient}
+		 */
 		this.client = input_manager.client;
+		/**
+		 * Last generated output
+		 * @type {MsgType}
+		 */
 		this.output = null;
 		this.write_topic_open = false;
 
@@ -21,17 +52,27 @@ export class InputDriverBase {
 		this.inp_topic = null;
 	}
 
-	// override this to define named axes
+	/**
+	 * Return a map of axes that can be mapped in the Input Manager
+	 * @returns {Object.<string, string>} axis_id => 'Axis name'
+	 */
 	getAxes() {
 		return {};
 	}
 
-	// override this to define named buttons
+	/**
+	 * Return a map of buttons that can be mapped in the Input Manager
+	 * @returns {Object.<string, string>} btn_id => 'Btn name'
+	 */
 	getButtons() {
 		return {};
 	}
 
-	// override this to output message
+	/**
+	 * Generate and return output message based on axes and button states.
+	 * Override this to output ROS control messages.
+	 * @return {MsgType}
+	 */
 	generate() {
 		console.warn("You need to override the generate() method!");
 		return null;
@@ -42,6 +83,10 @@ export class InputDriverBase {
 		this.buttons_output = {};
 	}
 
+	/**
+	 * Apply loaded config data
+	 * @param {object} cfg 
+	 */
 	setConfig(cfg) {
 		// from cookie, robot, etc
 		if (cfg && cfg.output_topic) {
@@ -50,6 +95,10 @@ export class InputDriverBase {
 		this.setupWriter();
 	}
 
+	/**
+	 * Return a custom config (only when some extra data needs to be saved)
+	 * @returns {object}
+	 */
 	getConfig() {
 		// to save as cookie, on robot, etc
 		let cfg = {

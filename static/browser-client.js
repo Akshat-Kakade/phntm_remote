@@ -1,4 +1,5 @@
-import { uuidToBytes } from "lib";
+import { uuidToBytes, isVideoTopicStream } from "lib";
+import { PanelUI } from "panel-ui";
 
 class TopicWriter {
 	constructor(client, topic, msg_type) {
@@ -93,30 +94,121 @@ class TopicReader {
 	}
 }
 
-export function IsImageTopic(t) {
-	return (
-		t == "sensor_msgs/msg/Image" ||
-		t == "sensor_msgs/msg/CompressedImage" ||
-		t == "ffmpeg_image_transport_msgs/msg/FFMPEGPacket"
-	);
-}
+/**
+ * Discovered interface definitions changed
+ * @event BrowserClient#event:defs_updated 
+ * @type {EmptyEvent}
+ */
+/**
+ * Discovered Docker containers changed
+ * @event BrowserClient#event:docker 
+ * @type {DockerInfoEvent}
+ */
+/**
+ * Received error from the robot 
+ * 
+ * Arguments: error (number), message (string) 
+ * @event BrowserClient#event:error 
+ * @type {ErrorEvent}
+ */
+/**
+ * Media stream opened for topic
+ * 
+ * Arguments: id_topic (string), stream (MediaStream) 
+ * @event BrowserClient#event:media_stream 
+ * @type {MediaStreamEvent}
+ */
+/**
+ * Detected nodes changed
+ * @event BrowserClient#event:nodes 
+ * @type {NodesEvent}
+ */
+/**
+ * WebRTC connection established
+ * @event BrowserClient#event:peer_connected 
+ * @type {EmptyEvent}
+ */
+/**
+ * WebRTC connection changed
+ * @event BrowserClient#event:peer_connection_changed 
+ * @type {EmptyEvent}
+ */
+/**
+ * WebRTC connection closed
+ * @event BrowserClient#event:peer_disconnected 
+ * @type {EmptyEvent}
+ */
+/**
+ * Some other peer called a service, this is the reply (used for UI syncing)
+ * 
+ * Arguments: service (string(, msg (MsgType)
+ * @event BrowserClient#event:peer_service_call_broadcast 
+ * @type {EmptyEvent}
+ */
+/**
+ * Peer connection stats generated
+ * @event BrowserClient#event:peer_stats 
+ * @type {PeerStatsEvent}
+ */
+/**
+ * Received robot peer info
+ * 
+ * Arguments: num_connected (number), num_waiting(number)
+ * @event BrowserClient#event:robot_peers 
+ * @type {PeerInfoEvent}
+ */
+/**
+ * Discovered services changed
+ * @event BrowserClient#event:services 
+ * @type {ServicesInfoEvent}
+ */
+/**
+ * Socket.io connected to the Bridge Server
+ * @event BrowserClient#event:socket_connect 
+ * @type {EmptyEvent}
+ */
+/**
+ * Socket.io Bridge Server connection lost
+ * @event BrowserClient#event:socket_disconnect 
+ * @type {EmptyEvent}
+ */
+/**
+ * Discovered topics changed
+ * @event BrowserClient#event:topics 
+ * @type {TopicsInfoEvent}
+ */
+/**
+ * Received robot's state data or connection state changed (UI should update)
+ * @event BrowserClient#event:update 
+ * @type {EmptyEvent}
+ */
 
-export function IsVideoTopic(t) {
-	return (
-		t == "sensor_msgs/msg/Image" ||
-		t == "ffmpeg_image_transport_msgs/msg/FFMPEGPacket"
-	);
-}
-
-export function IsFastVideoTopic(t) {
-	return t == "ffmpeg_image_transport_msgs/msg/FFMPEGPacket";
-}
-
+/**
+ * This class is responsible for establishing WebRTC connection to the Robot,
+ * Socket.io connection to the Bridge Server, subscribing to topics,
+ * handling message calls, and so on
+ */
 export class BrowserClient extends EventTarget {
 
+	/**
+     * @constructor
+     * @param {Object} opts Configuration
+     * @param {string} opts.socket_url Socket.IO server URL
+     * @param {string} opts.socket_path Socket.IO endpoint path
+     * @param {boolean} opts.socket_auto_connect Whether to connect automatically
+     * @param {string} opts.bridge_files_url Base URL for bridge files
+     * @param {string} opts.app_id Application ID
+     * @param {string} opts.bridge_server Bridge Server address
+     * @param {string} opts.id_robot Robot ID
+     * @param {boolean} opts.force_turn Force a TURN connection for debugging
+     */
 	constructor(opts) {
 		super();
 
+		/**
+		 * Robot ID
+		 * @type {string} 
+		 */
 		this.id_robot = opts.id_robot;
 		if (!this.id_robot) {
 			console.error("Missing opts.id_robot");
@@ -127,9 +219,25 @@ export class BrowserClient extends EventTarget {
 			console.error("Missing opts.app_id");
 			return false;
 		}
-
+		/**
+		 * Robot's name
+		 * @type {string} 
+		 */
+		this.name = null;
+		/**
+		 * WebRTC peer connection object
+		 * @type {PeerConnection} 
+		 */
 		this.pc = null;
+		/**
+		 * This peer's WebRTC session ID
+		 * @type {string}
+		 */
 		this.pc_session = null;
+		/**
+		 * This peer's session (app instance) ID from Bridge Server
+		 * @type {string} 
+		 */
 		this.id_instance = null;
 
 		//defaults to phntm bridge service
@@ -144,9 +252,21 @@ export class BrowserClient extends EventTarget {
 		this.ice_servers_config = [];
 		this.force_turn = opts.force_turn;
 		this.is_waiting = false;
-
+		
+		/**
+		 * Discovered topics and their message types
+		 * @type {Object.<string, TopicInfo>}
+		 */
 		this.discovered_topics = {}; // str topic => { msg_types: str[], subscribed: bool }
+		/**
+		 * Discovered nodes, publishers, subscribers and their services
+		 * @type {Object.<string, NodeInfo>}
+		 */
 		this.discovered_nodes = {}; // str node => { msg_type: str}
+		/**
+		 * Discovered services and their message types
+		 * @type {Object.<string, ServiceInfo>}
+		 */
 		this.discovered_services = {}; // str service => { msg_type: str}
 
 		this.init_complete = false;
@@ -157,7 +277,15 @@ export class BrowserClient extends EventTarget {
 		this.subscribers = {}; //id => topic or cam reader
 		this.can_change_subscriptions = false;
 		this.requested_subscription_change = false;
+		/**
+		 * Open inbound data channels
+		 * @type {Object.<string, string>}
+		 */
 		this.topic_streams = {}; // topic / cam => id_stream
+		/**
+		 * Open inbound media streams by id_stream
+		 * @type {Object.<string, MediaStream>}
+		 */
 		this.open_media_streams = {}; // id_stream => { mid: string, stream: MediaStream } 
 		this.latest = {};
 
@@ -166,6 +294,10 @@ export class BrowserClient extends EventTarget {
 		this.topic_config_callbacks = {};
 		this.service_config_callbacks = {};
 		
+		/**
+		 * Reference to :js:class:`PanelUI`
+		 * @type {PanelUI}
+		 */
 		this.ui = null; // ui ref
 		this.ui_config = {};
 		this.ui_config_callbacks = [];
@@ -176,6 +308,10 @@ export class BrowserClient extends EventTarget {
 		this.prefixed_configs = {};
 		this.prefixed_configs_received = false;
 
+		/**
+		 * All received message type definitions
+		 * @type {InterfaceDefinition[]}
+		 */
 		this.supported_msg_types = []; // served from Bridge Server
 		
 		this.service_request_hooks = {};
@@ -190,6 +326,10 @@ export class BrowserClient extends EventTarget {
 			id_app: this.app_id,
 		};
 
+		/**
+		 * Socket.io connection object
+		 * @type {Socketio}
+		 */
 		this.socket = io(this.socket_url, {
 			path: this.socket_path,
 			auth: this.socket_auth,
@@ -225,7 +365,6 @@ export class BrowserClient extends EventTarget {
 				}
 			}, 0);
 		});
-
 
 		this.on("socket_disconnect", () => {
 			console.log("Got robot socket disconect");
@@ -361,7 +500,7 @@ export class BrowserClient extends EventTarget {
 								];
 							that.discovered_nodes[node].publishers[topic] = {
 								msg_type: msg_type,
-								is_video: IsImageTopic(msg_type),
+								is_video: isVideoTopicStream(msg_type),
 								msg_type_supported:
 									that.findMessageType(msg_type) != null,
 								qos: qos,
@@ -370,7 +509,7 @@ export class BrowserClient extends EventTarget {
 							that.discovered_topics[topic] = {
 								msg_type: msg_type,
 								id: topic,
-								is_video: IsImageTopic(msg_type),
+								is_video: isVideoTopicStream(msg_type),
 								msg_type_supported:
 									that.findMessageType(msg_type) != null,
 							};
@@ -391,7 +530,7 @@ export class BrowserClient extends EventTarget {
 								];
 							that.discovered_nodes[node].subscribers[topic] = {
 								msg_type: msg_type,
-								is_video: IsImageTopic(msg_type),
+								is_video: isVideoTopicStream(msg_type),
 								msg_type_supported:
 									that.findMessageType(msg_type) != null,
 								qos: qos,
@@ -401,7 +540,7 @@ export class BrowserClient extends EventTarget {
 								that.discovered_topics[topic] = {
 									msg_type: msg_type,
 									id: topic,
-									is_video: IsImageTopic(msg_type),
+									is_video: isVideoTopicStream(msg_type),
 									msg_type_supported:
 										that.findMessageType(msg_type) != null,
 								};
@@ -545,6 +684,12 @@ export class BrowserClient extends EventTarget {
 		return this.msg_writers[msg_type];
 	}
 
+	/**
+	 * Register a callback to be called on event (see the list above)
+	 * 
+	 * @param {string} what 
+	 * @param {Callback} cb 
+	 */
 	on(what, cb) {
 		// TMP
 		if (what.indexOf("/") === 0) {
@@ -568,6 +713,12 @@ export class BrowserClient extends EventTarget {
 		})
 	}
 
+	/**
+	 * Register a callback to be called once on event (see the list above)
+	 * 
+	 * @param {string} event 
+	 * @param {Callback} cb 
+	 */
 	once(event, cb) {
 		if (!this.event_calbacks[event])
 			this.event_calbacks[event] = [];
@@ -581,6 +732,12 @@ export class BrowserClient extends EventTarget {
 		this.on(event, wrapper_cb);
 	}
 
+	/**
+	 * Unregister callback from an event
+	 * 
+	 * @param {string} event 
+	 * @param {Callback} cb 
+	 */
 	off(event, cb) {
 		// TMP
 		if (event.indexOf("/") === 0) {
@@ -617,6 +774,12 @@ export class BrowserClient extends EventTarget {
 		});
 	}
 
+	/**
+	 * Subscribe to topic messages
+	 * 
+	 * @param {string} topic 
+	 * @param {Callback} cb 
+	 */
 	onTopicData(topic, cb) {
 
 		if (!this.topic_calbacks[topic])
@@ -637,6 +800,11 @@ export class BrowserClient extends EventTarget {
 		}
 	}
 
+	/**
+	 * Unsubscribe from topic messages
+	 * @param {string} topic 
+	 * @param {Callback} cb 
+	 */
 	offTopicData(topic, cb) {
 		if (!this.topic_calbacks[topic]) {
 			console.warn("Topic callback not registered", topic, this.topic_calbacks);
@@ -669,6 +837,11 @@ export class BrowserClient extends EventTarget {
 		});
 	}
 
+	/**
+	 * Returns config params for the topic from the phntm_bridge.yaml config file
+	 * @param {string} topic 
+	 * @returns {any}
+	 */
 	getTopicConfig(topic) {
 		if (this.prefixed_configs[topic])
 			return this.prefixed_configs[topic];
@@ -680,6 +853,12 @@ export class BrowserClient extends EventTarget {
 		return this.prefixed_configs_received;
 	}
 
+	/**
+	 * Registers a callback to be called when topic config updates
+	 * 
+	 * @param {string} topic 
+	 * @param {Callback} cb 
+	 */
 	onTopicConfig(topic, cb) {
 		if (!this.topic_config_callbacks[topic])
 			this.topic_config_callbacks[topic] = [];
@@ -687,6 +866,11 @@ export class BrowserClient extends EventTarget {
 			this.topic_config_callbacks[topic].push(cb);
 	}
 
+	/**
+	 * Unregisters callback from being called when topic config updates
+	 * @param {string} topic 
+	 * @param {Callback} cb 
+	 */
 	offTopicConfig(topic, cb) {
 		if (!this.topic_config_callbacks[topic])
 			return;
@@ -696,6 +880,12 @@ export class BrowserClient extends EventTarget {
 		}
 	}
 
+	/**
+	 * Returns config params for the service from the phntm_bridge.yaml config file
+	 * 
+	 * @param {string} srv Service name
+	 * @returns {any}
+	 */
 	getServiceConfig(srv) {
 		if (this.prefixed_configs[srv])
 			return this.prefixed_configs[srv];
@@ -703,6 +893,12 @@ export class BrowserClient extends EventTarget {
 		return null; // no config
 	}
 
+	/**
+	 * Registers a callback to be called when service config updates
+	 * 
+	 * @param {string} service 
+	 * @param {Callback} cb 
+	 */
 	onServiceConfig(service, cb) {
 		if (!this.service_config_callbacks[service])
 			this.service_config_callbacks[service] = [];
@@ -710,6 +906,12 @@ export class BrowserClient extends EventTarget {
 			this.service_config_callbacks[service].push(cb);
 	}
 
+	/**
+	 * Unregisters callback from being called when service config updates
+	 * 
+	 * @param {string} service 
+	 * @param {Callback} cb 
+	 */
 	offServiceConfig(service, cb) {
 		if (!this.service_config_callbacks[service])
 			return;
@@ -730,15 +932,31 @@ export class BrowserClient extends EventTarget {
 		});
 	}
 
+	/**
+	 * Returns config param from the phntm_bridge.yaml file
+	 * 
+	 * @param {string} key Config key
+	 * @returns {any} Config value
+	 */
 	getConfigParam(key) {
 		return this.ui_config[key];
 	}
 
+	/**
+	 * Registers a callback to be called when UI config updates
+	 * 
+	 * @param {Callback} cb 
+	 */
 	onUIConfig(cb) {
 		if (this.ui_config_callbacks.indexOf(cb) == -1)
 			this.ui_config_callbacks.push(cb);
 	}
 
+	/**
+	 * Unregisters callback from being called when UI config updates
+	 * 
+	 * @param {Callback} cb 
+	 */
 	offUIConfig(cb) {
 		let index = this.ui_config_callbacks.indexOf(cb);
 		if (index > -1) {
@@ -874,6 +1092,14 @@ export class BrowserClient extends EventTarget {
 		this.remove_subscribers_timeout = null;
 	}
 
+	/**
+	 * Opens write data channel for a topic, returns false on error and message err_out.message
+	 * 
+	 * @param {string} topic Topic name
+	 * @param {string} msg_type Message type
+	 * @param {Object|null} err_out Error object
+	 * @returns {boolean} Success
+	 */
 	openWriteChannel(topic, msg_type, err_out = null) {
 		if (this.topic_writers[topic] && this.topic_writers[topic].msg_type == msg_type) {
 			console.log("Re-using writer for " + topic + " and " + msg_type + "; init_complete=" + this.init_complete);
@@ -933,6 +1159,13 @@ export class BrowserClient extends EventTarget {
 		return true;
 	}
 
+	/**
+	 * Writes message into it a data channel opened with openWriteChannel()
+	 * 
+	 * @param {string} topic Topic name
+	 * @param {Object} msg Payload to send
+	 * @returns {boolean} Success
+	 */
 	writeTopicData(topic, msg) {
 		if (!this.topic_writers[topic])
 			return false;
@@ -980,6 +1213,9 @@ export class BrowserClient extends EventTarget {
 	// 	}
 	// }
 
+	/**
+	 * Connect to the Bridge Server
+	 */
 	connect() {
 		if (this.socket.connected) {
 			console.log("Socket.io already connected");
@@ -1023,6 +1259,9 @@ export class BrowserClient extends EventTarget {
 		});
 	}
 
+	/**
+	 * Disconnect from the Bridge Server
+	 */
 	disconnect() {
 		if (!this.socket.connected) {
 			console.log("Socket.io already disconnected");
@@ -1319,6 +1558,55 @@ export class BrowserClient extends EventTarget {
 
 		if (robot_data["read_video_streams"]) {
 			robot_data["read_video_streams"].forEach((stream_data) => {
+				let id_src = stream_data[0];
+				let id_stream = stream_data[1];
+				//let topic_config = stream_data[2]; //extra topic config
+
+				if (Array.isArray(id_stream) && id_stream.length > 1) {
+					id_stream = id_stream[0];
+					let src_type = id_stream[1]; // sensor_msgs/msg/Image
+				}
+
+				if (id_stream) {
+					// stream open
+					if (!that.topic_streams[id_src] || that.topic_streams[id_src] != id_stream) {
+						console.log("Setting stream to " + id_stream + " for " + id_src);
+						that.topic_streams[id_src] = id_stream;
+					} else {
+						console.log("Stream " + id_stream + " already in use for " + id_src);
+					}
+
+					if (that.open_media_streams[id_stream]) {
+						console.log("Re-using stream for " + id_src + "; " + that.topic_streams[id_src]);
+						that.emit("media_stream", id_src, that.open_media_streams[id_stream].stream, that.open_media_streams[id_stream].mid);
+					}
+				} else if (that.topic_streams[id_src]) {
+					//stream closed
+					console.log("Stream closed for " + id_src + "; " + that.topic_streams[id_src]);
+
+					// not deleting media stream!
+					// if (this.media_streams[this.topic_streams[id_source]])
+					//     delete this.media_streams[this.topic_streams[id_source]];
+
+					// deleting data topic channel
+					delete that.topic_streams[id_src];
+				}
+
+				// if (topic_config && Object.keys(topic_config).length) {
+				// 	console.log("Got " + id_src + " extra config:", topic_config);
+				// 	that.topic_configs[id_src] = topic_config;
+				// 	that.emitTopicConfig(id_src, that.topic_configs[id_src]);
+				// } else if (that.topic_configs[id_src]) {
+				// 	console.log("Deleted " + id_src + " extra config");
+				// 	delete that.topic_configs[id_src];
+				// 	that.emitTopicConfig(id_src, null);
+				// }
+			});
+		}
+
+		// TEMP!
+		if (robot_data["read_pointcloud_streams"]) {
+			robot_data["read_pointcloud_streams"].forEach((stream_data) => {
 				let id_src = stream_data[0];
 				let id_stream = stream_data[1];
 				//let topic_config = stream_data[2]; //extra topic config
@@ -1749,6 +2037,20 @@ export class BrowserClient extends EventTarget {
 		return pc;
 	}
 
+	/**
+	 * Get current peer connection information
+	 *
+	 * @callback PeerConnectionInfoCallback
+	 * @param {string} candidate_type - Connection candidate type.
+	 * @param {string} address - Connection address.
+	 * @returns {void}
+	 */
+
+	/**
+	 * Returns WebRTC connection type and IP of the robot used
+	 * 
+	 * @param {PeerConnectionInfoCallback} cb Called with candidateType and address
+	 */
 	getPeerConnectionInfo(cb) {
 		if (this.pc &&
 			this.pc.connectionState == "connected" &&
@@ -1851,7 +2153,7 @@ export class BrowserClient extends EventTarget {
 			this.service_request_hooks[id_service].push(cb_hook);
 	}
 
-	// reply hooks are trigerred on service reply
+	// reply hooks are triggered on service reply
 	registerServiceReplyHook(id_service, cb_hook) {
 		if (!this.service_reply_hooks[id_service])
 			this.service_reply_hooks[id_service] = [];
@@ -1859,6 +2161,16 @@ export class BrowserClient extends EventTarget {
 			this.service_reply_hooks[id_service].push(cb_hook);
 	}
 
+	/**
+	 * Performs a ROS service call, reply received via callback
+	 * 
+	 * @param {string} id_service Service to call
+	 * @param {Object} data Payload
+	 * @param {boolean} silent_req No UI notifications when silent
+	 * @param {number} timeout_sec Max timeout in sec
+	 * @param {Callback} cb Called on reply
+	 * @param {Callback} cb_connection_lost Called on connection lost
+	 */
 	serviceCall(id_service, data, silent_req, timeout_sec, cb, cb_connection_lost) {
 		let that = this;
 		// check request hooks as they can cancel service call
@@ -1996,6 +2308,14 @@ export class BrowserClient extends EventTarget {
 		return null;
 	}
 
+	/**
+	 * Request file extraction from a robot 
+	 * 
+	 * @param {string} path Searched file path (file:// or package://)
+	 * @param {boolean} use_cdn Whether to use CDN or not
+	 * @param {Callback} cb Result returned here
+	 * @param {Callback} cb_err Called on error
+	 */
 	requestRobotFileDownloadURL(path, use_cdn, cb, cb_err) {
 		let that = this;
 		this.socket.emit(

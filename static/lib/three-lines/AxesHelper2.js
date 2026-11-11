@@ -8,8 +8,8 @@ import { LineSegmentsGeometry as LineSegmentsGeometry2} from "line-segments-geom
  * The X axis is red. The Y axis is green. The Z axis is blue.
  *
  * ```js
- * const axesHelper = new THREE.AxesHelper( 5 );
- * scene.add( axesHelper );
+ * const axes_helper = new THREE.AxesHelper( 5 );
+ * scene.add( axes_helper );
  * ```
  *
  * @augments LineSegments2

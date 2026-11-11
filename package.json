@@ -1,7 +1,7 @@
 {
-	"name": "phntm_bridge_ui",
+	"name": "phntm_remote",
 	"version": "0.0.1",
-	"description": "Web UI for Phantom Bridge",
+	"description": "Phantom Remote",
 	"packageManager": "bun@1.2.10",
 	"scripts": {
 		"dev": "NODE_ENV=development bun --watch src/main.ts",
@@ -13,6 +13,7 @@
 		"ros2",
 		"phntm",
 		"phantom",
+		"remote",
 		"bridge",
 		"webrtc",
 		"socket.io",
@@ -29,9 +30,9 @@
 	"author": "Mirek Burkon",
 	"license": "MIT",
 	"bugs": {
-		"url": "https://github.com/PhantomCybernetics/bridge_ui/issues"
+		"url": "https://github.com/PhantomCybernetics/phntm_remote/issues"
 	},
-	"homepage": "https://github.com/PhantomCybernetics/bridge_ui#readme",
+	"homepage": "https://github.com/PhantomCybernetics/phntm_remote#readme",
 	"dependencies": {
 		"@canvasjs/charts": "^3.15.23",
 		"@foxglove/message-definition": "^0.5.0",

@@ -16,18 +16,16 @@ export class VideoWidget extends SingleTypePanelWidgetBase {
 	constructor(panel, topic, unused_widget_css_class, plugin_classes) {
 		super(panel, topic, 'video');
 
-		this.widget_el.html('<video id="panel_video_' + panel.n + '" autoplay="true" playsinline="true" muted="true" preload="metadata"></video>' + //muted allows video autoplay in chrome before user interactions
-				  			'<span id="video_stats_' + panel.n + '" class="video_stats"></span>' +
-				  			'<div id="video_overlay_' + panel.n + '" class="video_overlay"></div>'
-				 			); // the muted flag allows video autoplay in chrome before any user interactions
+		this.video_el = $('<video id="panel_video_' + panel.n + '" autoplay="true" playsinline="true" muted="true" preload="metadata"></video>'); //muted allows video autoplay in chrome before user interactions
+		this.video_stats_el = $('<span id="video_stats_' + panel.n + '" class="video_stats"></span>');
+		this.overlay_el = $('<div id="video_overlay_' + panel.n + '" class="video_overlay"></div>');
+		this.widget_el.append([ this.video_el, this.video_stats_el, this.overlay_el]);
 
-		this.overlay_el = $("#video_overlay_" + panel.n);
 		this.last_video_stats_string = "";
 		this.last_video_packets_lost = 0;
 		this.last_video_frames_dropped = 0;
 		this.video_stats_enabled = this.panel.getPanelVarAsBool('st', false);
 		this.last_video_freeze_count = 0;
-		this.video_stats_el = $("#video_stats_" + panel.n);
 
 		if (this.video_stats_enabled)
 			this.video_stats_el.addClass("enabled");
@@ -37,25 +35,23 @@ export class VideoWidget extends SingleTypePanelWidgetBase {
 
 		let that = this;
 
-		this.video_el = document.getElementById("panel_video_" + panel.n);
-
-		this.video_el.onloadedmetadata = () => {
+		this.video_el[0].onloadedmetadata = () => {
 			if (!that.panel.paused)
-				that.video_el.play().catch((e) => console.error("Play failed:", e));
+				that.video_el[0].play().catch((e) => console.error("Play failed:", e));
 		};
 
-		this.video_el.addEventListener("resize", () => {
+		this.video_el[0].addEventListener("resize", () => {
 			// Safari sometimes doesn't load meta properly => wait for actual dimensions
 			if (that.video_width != -1 || that.video_height != -1) return;
 
-			if (!that.video_el.videoWidth || !that.video_el.videoHeight) {
-				console.log("Invalid video metadata loaded, ignoring; w, h = ", that.video_el.videoWidth, that.video_el.videoHeight);
+			if (!that.video_el[0].videoWidth || !that.video_el[0].videoHeight) {
+				console.log("Invalid video metadata loaded, ignoring; w, h = ", that.video_el[0].videoWidth, that.video_el[0].videoHeight);
 				return;
 			}
 
-			console.log("Video meta loaded:", that.video_el.videoWidth, that.video_el.videoHeight);
-			that.video_width = that.video_el.videoWidth;
-			that.video_height = that.video_el.videoHeight;
+			console.log("Video meta loaded:", that.video_el[0].videoWidth, that.video_el[0].videoHeight);
+			that.video_width = that.video_el[0].videoWidth;
+			that.video_height = that.video_el[0].videoHeight;
 
 			Object.values(this.plugins).forEach((p)=>{
 				if (p.onResize)
@@ -67,7 +63,14 @@ export class VideoWidget extends SingleTypePanelWidgetBase {
 			console.log("(Assigned) Stream error", ev);
 		});
 
-		this.panel.setMediaStream(); // try init
+
+		this.onMediaStream = (id_src, stream, mid) => {
+            if (id_src != that.topic)
+                return;
+            that.setVideoStream(that.video_el, stream, mid);
+        }
+		this.client.on("media_stream", this.onMediaStream);
+		this.setVideoStream(this.video_el); // try init
 
 		this.overlay_topics = {};
 		this.next_overlay_id = 0;
@@ -194,5 +197,6 @@ export class VideoWidget extends SingleTypePanelWidgetBase {
 			if (p.clearAllTopics)
 				p.clearAllTopics();
 		});
+		this.client.off("media_stream", this.onMediaStream);
 	}
 }

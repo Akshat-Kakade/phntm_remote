@@ -11,7 +11,7 @@ import { Debugger } from "./lib/debugger";
 import { GetCerts, GetGitCommitHash, GetExactTagOnHead } from "./lib/helpers";
 import { createWebUIServerExpressApp, printStartupMessage } from "./WebUIServer";
 
-const $d: Debugger = Debugger.Get("[Bridge Web]");
+const $d: Debugger = Debugger.Get("[Phntm Remote]");
 const config = await getConfig();
 const gitTag = GetExactTagOnHead();
 const gitCommit = GetGitCommitHash();

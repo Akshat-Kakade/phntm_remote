@@ -360,3 +360,17 @@ export function checkClientVersionLatest(current_client_version, sorted_commits)
 
 	return sorted_commits[0].hash.indexOf(current_client_version) !== -1; // the newest is 0
 }
+
+export function isVideoTopicStream(t, include_compressed=true) {
+	return (
+		t == "sensor_msgs/msg/Image" ||
+		(include_compressed && t == "sensor_msgs/msg/CompressedImage") ||
+		t == "ffmpeg_image_transport_msgs/msg/FFMPEGPacket"
+	);
+}
+
+export function isPointCloudTopicStream(t) {
+	return (	
+		t == "sensor_msgs/msg/PointCloud2"
+	);
+}

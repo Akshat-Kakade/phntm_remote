@@ -26,7 +26,8 @@ const envConfigSchema = z
 
 // final config schema, with default values and strict types
 const fullConfigSchema = z.object({
-	name: z.string().default("PHNTM BRIDGE WEB UI"),
+	name: z.string().default("Phantom Remote"),
+	uiName: z.string().default("PHNTM Remote"),
 	https: z.boolean().default(false),
 	ssl: z.object({ private: z.string(), public: z.string() }).optional(),
 	port: z.number().positive().int(),
@@ -76,4 +77,4 @@ export async function getConfig() {
 	return fullConfigSchema.parse(Object.assign({}, fileConfig, envConfigRenamed));
 }
 
-export type BridgeUiConfig = Awaited<ReturnType<typeof getConfig>>;
+export type RemoteConfig = Awaited<ReturnType<typeof getConfig>>;

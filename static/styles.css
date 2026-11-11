@@ -10,10 +10,12 @@ body {
 	margin: 0px;
 	position: relative;
 	padding: 0px 0px 0px 0px; /* make some space for panel resizing  */
+	
 }
 
 HTML {
 	scrollbar-width: none;
+	overscroll-behavior-y: none;
 }
 
 /* preload graphics */
@@ -65,7 +67,8 @@ body::after {
 		url("./graph/icon-external-link.svg")
 		url("./graph/phantom-cybernetics-logo-white.svg")
 		url("./graph/dead-robot.svg")
-		url("./graph/bridge-logo.svg")
+		url("./graph/remote-logo.svg")
+		url("./graph/remote-pro-logo.svg")
 		url('./graph/robot-queued.svg')
 		url('./graph/icon-lock.svg')
 		url("./graph/icon-lock-horizon.svg")
@@ -3249,11 +3252,20 @@ BODY.touch-ui .editing .grid-stack-item-content {
 
 .panel_widget.video {
 	background: #000;
+}
+
+.panel_widget.video,
+.panel_source.video {
 	position: relative;
 	height: 100%;
 }
 
-.panel_widget video {
+.panel_source.video {
+	/* border-color: black; */
+}
+
+.panel_widget video,
+.panel_source video {
 	/* margin: auto auto; */
 	/* vertical-align: middle; */
 	margin: 0;
@@ -4813,9 +4825,6 @@ BODY.simple #bottom-links  {
 	width: calc(100% - 30px);
 	background-color: var(--panel-bg-color);
 }
-BODY.hamburger #bottom-links {
-	background-color: unset;
-}
 
 BODY.hamburger #bottom-links .wide-only {
 	display: none;
@@ -4838,28 +4847,69 @@ BODY.hamburger #bottom-links I.bm-hide {
 	display: none;
 }
 
+#bottom-links BR {
+	display: none;
+}
+
+BODY.hamburger #bottom-links BR {
+	display: block;
+	clear: both;
+}
+
 BODY.hamburger #bottom-links SPAN {
 	display: inline-block;
-	margin-top: 2px;
 }
 
 BODY.hamburger SPAN#bridge-docs-link {
-	display: block;
+	/* display: block; */
+	margin-left: 22px;
 }
 
-BODY.hamburger.touch-ui #bottom-links SPAN#fullscreen-toggle {
+BODY.hamburger SPAN#bridge-docs-link::after,
+BODY.hamburger #bottom-links.has-ros-distro #ros-distro-label::after,
+BODY.hamburger #remote-docs-link::after {
+	content: ': ';
+}
+
+#bottom-links #fullscreen-toggle {
+	display: none;
+}
+
+BODY.hamburger.touch-ui #bottom-links #fullscreen-toggle {
 	display: block;
 	position: absolute;
 	width: 35px;
 	height: 40px;
-	right: 10px;
-	bottom: 8px;
+	left: 43px;
+	bottom: 130px;
 	margin: 0px;
 	padding: 0px;
 	background-image: url(./graph/icon-fullscreen.png);
 	background-size: 70px;
 	background-repeat: no-repeat;
 	background-position: 0px 0px;
+}
+
+BODY.hamburger.touch-ui #bottom-links #fullscreen-toggle SPAN {
+	position: absolute;
+    left: 47px;
+    top: 0px;
+    line-height: 40px;
+    display: block;
+    white-space: nowrap;
+    font-size: 16px;
+	color: #fff;
+}
+
+BODY.hamburger.touch-ui #bottom-links #fullscreen-toggle SPAN.disable {
+	display: none;
+}
+
+BODY.hamburger.touch-ui #bottom-links #fullscreen-toggle.enabled SPAN.enable {
+	display: none;
+}
+BODY.hamburger.touch-ui #bottom-links #fullscreen-toggle.enabled SPAN.disable {
+	display: block;
 }
 
 #bottom-links #donate-link {
@@ -4904,34 +4954,35 @@ BODY.hamburger.touch-ui #bottom-links SPAN#fullscreen-toggle {
 BODY.hamburger #bottom-links #donate-link {
 	position: relative;
 	left: unset;
-	/* margin-top: px; */
+	margin-top: 10px;
 }
 
 @supports (-webkit-touch-callout: none) {
-	BODY.hamburger.touch-ui #bottom-links SPAN#fullscreen-toggle {
+	BODY.hamburger.touch-ui #bottom-links #fullscreen-toggle {
 		display: none; /* use "hide toolbar" on ios */
 	}
 }
 
-BODY.hamburger.touch-ui #bottom-links SPAN#fullscreen-toggle:active {
-	background-color: #013669;
+BODY.hamburger.touch-ui #bottom-links #fullscreen-toggle:active {
+	background-color: unset;
+	color: white;
 }
 
-BODY.hamburger.touch-ui #bottom-links SPAN#fullscreen-toggle.enabled {
+BODY.hamburger.touch-ui #bottom-links #fullscreen-toggle.enabled {
 	background-position: -35px 0px;
 }
 
 BODY.hamburger #bottom-links {
 	text-align: left;
 	position: absolute;
-	left: 20px;
-	width: 245px;
-	bottom: 10px;
-	padding: 7px 10px 7px 0px;
+	left: 0px;
+	width: 100%;
+	bottom: 0px;
+	padding: 10px 20px;
 	color: #ffffff4a;
-	font-size: 12px;
-	line-height: 15px;
+	line-height: 20px;
 	top: unset !important;
+	background-color: black;
 }
 
 BODY.hamburger #bottom-links.inline {
@@ -4965,12 +5016,33 @@ BODY.hamburger #bottom-links.inline {
 	font-size: 12px !important;
 }
 
-BODY.hamburger #bottom-links A {
-	color: #ffffff4a;
-	margin: 0px 4px 0px 0px;
-	/* line-height: 20px; */
+#ros-distro-label,
+#ros-distro-label-short {
+	display: none;
+}
+
+#bottom-links.has-ros-distro #ros-distro-label-short {
+	display: inline-block
+}
+
+BODY.hamburger #ros-distro-label-short  {
+	display: none !important;
+}
+
+BODY.hamburger #bottom-links.has-ros-distro #ros-distro-label {
 	display: inline-block;
-	font-size: 16px;
+	margin-left: 22px;
+	position: relative;
+	
+}
+
+BODY.hamburger #bottom-links A {
+	margin: 0px 0px 0px 0px;
+	display: inline-block;
+}
+
+BODY.hamburger #bottom-links, BODY.hamburger #bottom-links A {
+	font-size: 16px !important;
 }
 
 #bottom-links A.credits {
@@ -7382,6 +7454,9 @@ BODY.touch-ui #service-input-dialog .btn-tabs.sortable .btn-tab:not(.touch-sorta
 BODY.simple {
 	margin: 0px;
 	padding: 0px;
+	/* position: relative; */
+	height: 100%;
+	background-color: black;
 }
 
 BODY.simple #bottom-links {
@@ -7505,10 +7580,10 @@ BODY.waiting #waiting-dialog-underlay {
 #error-page-logo {
 	position: absolute;
     left: 50%;
-    top: -180px;
+    top: -160px;
     width: min(350px, 80vw);
     height: 120px;
-    background-image: url(./graph/bridge-logo.svg);
+    background-image: url(./graph/remote-logo.svg);
     background-repeat: no-repeat;
     background-size: 100% 100%;
     background-position: 0px 0px;
@@ -7517,13 +7592,12 @@ BODY.waiting #waiting-dialog-underlay {
 
 #login-page {
 	color: #fff;
-    font-size: 20px;
+    font-size: 16px;
     position: absolute;
     left: 50%;
     top: max(50%, 270px);
     transform: translate(-50%, -50%);
 	width: min(450px, 80%);
-	
 }
 
 #login-page FORM {
@@ -7532,14 +7606,12 @@ BODY.waiting #waiting-dialog-underlay {
 }
 
 #login-page .form-content {
-	padding: 20px;
+	padding: 10px 10px 0px 10px;
     border-radius: 10px;
-	background: #000000;
+	background-color: var(--body-bg-color);
 	width: calc(100% - 40px);
-	height: 135px;
 	position: relative;
 }
-
 
 #login-page .form-content.error {
 	animation-name: login-err-shake;
@@ -7567,9 +7639,9 @@ BODY.waiting #waiting-dialog-underlay {
 	position: absolute;
     left: 50%;
     top: -180px;
-	width: min(350px, 80vw);
-    height: 120px;
-    background-image: url(./graph/bridge-logo.svg);
+    width: min(400px, 80vw);
+    height: 140px;
+    background-image: url(./graph/remote-pro-logo.svg);
     background-repeat: no-repeat;
     background-size: 100% 100%;
     background-position: 0px 0px;
@@ -7581,9 +7653,14 @@ BODY.waiting #waiting-dialog-underlay {
 	height: 50px;
 }
 
+#login-page DIV.bottom {
+	position: relative;
+	height: 50px;
+}
+
 #login-page LABEL {
 	position: absolute;
-	left: 0px;
+	left: 5px;
 	line-height: 40px;
 }
 
@@ -7600,7 +7677,7 @@ BODY.waiting #waiting-dialog-underlay {
 }
 
 #login-page BUTTON {
-	background-color: #005a00;
+	background-color: #023668;
     color: #fff;
     position: absolute;
     right: 0px;
@@ -7609,6 +7686,7 @@ BODY.waiting #waiting-dialog-underlay {
     padding: 0px 20px;
     border: 0px;
 	font-weight: bold;
+	bottom: 10px;
 }
 
 TABLE.wifi-scan-results {

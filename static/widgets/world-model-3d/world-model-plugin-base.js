@@ -1,3 +1,9 @@
+/**
+ * Extend this class to implement a custom plugin for the World Model 3D widget as outlined in the code snippet below.
+ * A working example - :ref:`overlay displaying Battery messages as virtual LEDs on the robot <implementing-custom-world-model-3d-overlays>` - can be found `in the Extras 
+ * repository <https://github.com/PhantomCybernetics/phntm_remote_extras/tree/main/examples/custom-world-model-battery-plugin/>`_
+ * and also :doc:`live in our demos </remote/demos/>`.
+ */
 export class WorldModel3DPluginBase {
 
     /**
@@ -13,49 +19,47 @@ export class WorldModel3DPluginBase {
      */
     static SOURCE_DESCRIPTION = 'Describe topic type';  
     /**
-     * Default topic to select
+     * Default topic to select or null (default)
      * @static
-     * @type {string?}
+     * @type {string|null}
      * @default null
      */
-    static SOURCE_DEFAULT_TOPIC = null; // some default topic, maybe
+    static SOURCE_DEFAULT_TOPIC = null;
     /**
      * The maximum number of topics this plugin can handle, -1=unlimited
      * @static
-     * @type {int}
+     * @type {number}
      * @default -1
      */
-    static SOURCE_MAX_NUM = -1; // limit the number of sources to be allowed to use
-
+    static SOURCE_MAX_NUM = -1;
     /** 
-     * Plugin constructor, make sure to call super(world_model)
-     * @constructs WorldModel3DPluginBase
-     * @param {WorldModel3DWidget} world_model - widget instance reference
+     * @constructor
+     * @param {WorldModel3DWidget} world_model - World Model base widget reference
      */
     constructor(world_model) {
         /**
-         * Widget reference
+         * World Model widget base object
          * @type {WorldModel3DWidget}
          */
         this.world_model = world_model;
         /**
-         * BrowserClient reference
+         * :js:doc:`BrowserClient` reference
          * @type {BrowserClient}
          */
         this.client = this.world_model.client;
         /**
-         * Panel reference
+         * Reference to widget :js:doc:`Panel`
          * @type {Panel}
          */
         this.panel = this.world_model.panel;
         /**
-         * UI reference
+         * :js:doc:`PanelUI` reference
          * @type {PanelUI}
          */
         this.ui = this.world_model.panel.ui;
         /**
-         * Custom overlay data by topic
-         * @type {Object}
+         * Custom overlay data by topic, topic_name => custom_topic_data
+         * @type {object.<string,any>}
          */
         this.overlays = {}; 
     }
@@ -63,8 +67,7 @@ export class WorldModel3DPluginBase {
     /** 
      * Add topic to this plugin.
      * Called when the user selects a new topic as overlay input.
-     * @param {string} topic - topic id to add
-     * @virtual
+     * @param {string} topic Topic name
      */
     addTopic(topic) {
         if (!this.overlays[topic])
@@ -73,19 +76,17 @@ export class WorldModel3DPluginBase {
 
     /** 
      * Setup menu items by adding new lines into the provided menu_els container.
-     * @param {jQuery} menu_els - in/out menu elements
+     * @param {jQuery} menu_els
      */
     setupMenu(menu_els) {
-
     }
 
     /** 
      * Called when data for the topic is received.
-     * @param {string} topic - topic id
-     * @param {MsgType} msg - message data
+     * @param {string} topic Topic name
+     * @param {MsgType} msg Message data
      */
     onTopicData(topic, msg) {
-        // you receive your data here
     }
 
     /** 
@@ -101,15 +102,15 @@ export class WorldModel3DPluginBase {
     }
 
     /** 
-     * Remove all visuals for the topic here.
-     * @param {string} topic - topic id
+     * Remove all visuals for the topic here
+     * @param {string} topic Topic name
      */
     clearVisuals(topic) {
     }
 
     /** 
-     * Clear one topic and all its visuals.
-     * @param {string} topic - topic id
+     * Clear one topic and all its visuals
+     * @param {string} topic Topic name
      */
     clearTopic(topic) {
         this.clearVisuals(topic);
@@ -117,7 +118,7 @@ export class WorldModel3DPluginBase {
     }
 
     /** 
-     * Clear all topics.
+     * Clear all topics here
      */
     clearAllTopics() {
         let topics = Object.keys(this.overlays);
@@ -128,7 +129,8 @@ export class WorldModel3DPluginBase {
     }
 
     /** 
-     * Called when robot's URDF model is removed of updated.
+     * Called when robot's URDF model is removed (before update).
+     * Clear all visuals here.
      */
     onModelRemoved() {
         let topics = Object.keys(this.overlays);

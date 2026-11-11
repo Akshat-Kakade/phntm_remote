@@ -238,13 +238,13 @@ export class DescriptionTFWidget extends CompositePanelWidgetBase {
 		this.renderer.shadowMap.enabled = true;
 		this.renderer.setSize(panel.widget_width, panel.widget_height);
 		this.renderer.setPixelRatio(window.devicePixelRatio);
-		document.getElementById("panel_widget_" + panel.n).appendChild(this.renderer.domElement);
+		this.widget_el[0].appendChild(this.renderer.domElement);
 
 		this.labelRenderer = new CSS2DRenderer();
 		this.labelRenderer.setSize(panel.widget_width, panel.widget_height);
 		this.labelRenderer.domElement.style.position = "absolute";
 		this.labelRenderer.domElement.style.top = "0px";
-		document.getElementById("panel_widget_" + panel.n).appendChild(this.labelRenderer.domElement);
+		this.widget_el[0].appendChild(this.labelRenderer.domElement);
 		this.labelRenderer.domElement.addEventListener("pointerdown", (ev) => {
 			if (that.ui.space_mouse) {
 				that.ui.space_mouse.setWidget(that);
@@ -431,10 +431,9 @@ export class DescriptionTFWidget extends CompositePanelWidgetBase {
 		// }
 
 		this.controls = new TrackballControls(this.camera, this.labelRenderer.domElement);
-		console.warn('controls', this.controls);
 		this.controls.staticMoving = true; // no damping
 		this.controls.keys = []; // disable ASD controls
-		//this.controls.enablePan = !this.vars.camera_follows_selection;
+
 		this.renderer.domElement.addEventListener("pointerdown", (ev) => {
 			if (that.ui.space_mouse) {
 				that.ui.space_mouse.setWidget(that);
@@ -1698,15 +1697,15 @@ export class DescriptionTFWidget extends CompositePanelWidgetBase {
 			axis_size = 1.0; // big visual for robots coords frame, when base link is selected
 		}
 
-		const axesHelper = new THREE.AxesHelper(axis_size);
-		axesHelper.material.transparent = true;
-		axesHelper.material.opacity = 0.99;
-		axesHelper.material.width = 1.0;
-		axesHelper.material.depthTest = false;
-		axesHelper.material.depthWrite = false;
+		const axes_helper = new THREE.AxesHelper(axis_size);
+		axes_helper.material.transparent = true;
+		axes_helper.material.opacity = 0.99;
+		axes_helper.material.width = 1.0;
+		axes_helper.material.depthTest = false;
+		axes_helper.material.depthWrite = false;
 
-		target.add(axesHelper);
-		axesHelper.layers.set(layer_axes);
+		target.add(axes_helper);
+		axes_helper.layers.set(layer_axes);
 
 		let label_el = null;
 		if (label_text) {
@@ -1738,7 +1737,7 @@ export class DescriptionTFWidget extends CompositePanelWidgetBase {
 			// console.log('Making label "'+label_text+'", type='+layer_labels+"; target=", target);
 		}
 
-		return [axesHelper, label_el];
+		return [axes_helper, label_el];
 	}
 
 	onStaticTFData(topic, tf) {
@@ -1888,7 +1887,6 @@ export class DescriptionTFWidget extends CompositePanelWidgetBase {
 
 	renderDirty() {
 		if (!this.renderer) return;
-
 		this.render_dirty = true;
 	}
 

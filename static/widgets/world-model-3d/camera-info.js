@@ -30,7 +30,7 @@ export class WorldModel3DWidget_CameraInfo extends WorldModel3DPluginBase {
             this.overlays[topic].config = new_config;
 			this.clearVisuals(topic); //force re-render
         }
-        this.client.onTopicConfig(topic, this.overlays[topic].config_change_cb); // rebuild from new config when the bridge node restarts (urdf model may not change)
+        this.client.onTopicConfig(topic, this.overlays[topic].config_change_cb); // rebuild from new config when the Bridge node restarts (urdf model may not change)
 	}
 
     onTopicData(topic, msg) {

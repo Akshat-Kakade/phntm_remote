@@ -205,6 +205,7 @@
 	import { ImuWidget } from "<%= cdn_prefix %>/static/widgets/imu.js";
 	import { LogWidget } from "<%= cdn_prefix %>/static/widgets/log.js";
 	import { SystemLoadWidget } from "<%= cdn_prefix %>/static/widgets/system-load.js";
+	import { PointCloudWidget } from "<%= cdn_prefix %>/static/widgets/pointcloud.js";
 	
 	import { BrowserClient } from "browser-client";
 	import { InputManager } from "<%= cdn_prefix %>/static/input/input-manager.js";
@@ -281,15 +282,16 @@
 		});
 
 		let background_disconnect_sec = parseFloat('<%= background_disconnect_sec %>');
-		let panel_ui = new PanelUI(robot, 32, input_manager, background_disconnect_sec, '<%= cdn_prefix %>');
+		let panel_ui = new PanelUI(robot, '<%= ui_name %>', 32, input_manager, background_disconnect_sec, '<%= cdn_prefix %>');
 
 		// add core single type panel widgets
 		let single_type_panel_classes = [ BatteryStateWidget,
-										RangeWidget,
-										LaserScanWidget,
-										ImuWidget,
-										LogWidget,
-										SystemLoadWidget
+										  RangeWidget,
+										  LaserScanWidget,
+										  ImuWidget,
+										  LogWidget,
+										  SystemLoadWidget,
+										  PointCloudWidget
 										];
 		// find custom single type panel widgets
 		custom_modules.forEach((module) => {
@@ -318,6 +320,7 @@
 		VideoWidget.HANDLED_MSG_TYPES.forEach((msg_type) => {
 			panel_ui.addTypeWidget(msg_type, VideoWidget, video_plugin_classes);
 		});
+		// panel_ui.addTypeWidget("sensor_msgs/msg/PointCloud2", VideoWidget, video_plugin_classes);
 
 		// add world model 3d with overlat plugins
 		let world_model_3d_plugin_classes = [

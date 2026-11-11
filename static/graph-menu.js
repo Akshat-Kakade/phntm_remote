@@ -1,5 +1,4 @@
-import { IsImageTopic } from "browser-client";
-import { isTouchDevice } from "lib";
+import { isTouchDevice, isVideoTopicStream } from "lib";
 
 export class GraphMenu {
 	constructor(ui) {
@@ -438,7 +437,7 @@ export class GraphMenu {
 			let topic_el = $('<div class="graph_topic"></div>');
 			let msg_type_classes = ["msg_type"];
 			let title = this.topics[topic].msg_type;
-			if (IsImageTopic(this.topics[topic].msg_type)) {
+			if (isVideoTopicStream(this.topics[topic].msg_type)) {
 				msg_type_classes.push("video");
 				title += " transported as H.264 video";
 			}

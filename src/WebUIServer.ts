@@ -7,11 +7,11 @@ import fs from "fs"
 import { Gamepad, Button, Joystick } from "@rbuljan/gamepad";
 
 import type { Debugger } from "./lib/debugger";
-import type { BridgeUiConfig } from "./config";
+import type { RemoteConfig } from "./config";
 
 export function printStartupMessage(
 	{ uiVersion }: { uiVersion: string },
-	config: BridgeUiConfig,
+	config: RemoteConfig,
 ) {
 	console.log("-----------------------------------------------------------------------".yellow);
 	console.log(` ${config.name}`.yellow);
@@ -34,7 +34,7 @@ export function printStartupMessage(
 
 export function createWebUIServerExpressApp(
 	{ $d, uiVersion }: { $d: Debugger; uiVersion: string },
-	config: BridgeUiConfig,
+	config: RemoteConfig,
 	webExpressApp: express.Express,
 ) {
 	const CDN_PUB_PREFIX = uiVersion == '?' ? '/v/dev' : '/v/' + uiVersion; // publishing versioned assets here for CDN to cache
@@ -79,7 +79,7 @@ export function createWebUIServerExpressApp(
 
 	webExpressApp.get("/", async function (req: express.Request, res: express.Response) {
 		res.render("login", {
-			title: "Log in to PHNTM Bridge",
+			title: "Log in to Phantom Remote Pro",
 			analytics_code: config.analyticsCode ? config.analyticsCode.join("\n") : '',
 			ui_git_version: uiVersion,
 			login: req.query.login ? req.query.login : '',
@@ -103,7 +103,7 @@ export function createWebUIServerExpressApp(
 			let idRobot: string = req.params.ID as string;
 			if (!isValidObjectId(idRobot)) {
 				res.status(400).render("error", {
-					title: 'Error 400 @ PHNTM Bridge',
+					title: 'Error 400 @ Phantom Remote',
 					code: 400,
 					error: "Invalid Robot ID",
 					analytics_code: config.analyticsCode ? config.analyticsCode.join("\n") : '',
@@ -125,7 +125,7 @@ export function createWebUIServerExpressApp(
 					if (response.status != 200) {
 						$d.err("Locate returned code " + response.status + " for " + idRobot + " (" + config.bridgeLocateUrl + ")");
 						res.status(500).render("error", {
-							title: 'Error 500 @ PHNTM Bridge',
+							title: 'Error 500 @ ' + config.uiName,
 							code: 500,
 							error: 'Error locating robot on Bridge Server <span class="detail">Web UI credentials misconfigured, server returned: ' + response.status + '</span>',
 							analytics_code: config.analyticsCode ? config.analyticsCode.join("\n") : '',
@@ -138,7 +138,7 @@ export function createWebUIServerExpressApp(
 						$d.err("Locate returned code wrong robot id for " + idRobot + ":", response.data);
 						//res.send("Error locating robot on Bridge Server");
 						res.status(500).render("error", {
-							title: 'Error 500 @ PHNTM Bridge',
+							title: 'Error 500 @ ' + config.uiName,
 							code: 500,
 							error: "Error locating robot on Bridge Server",
 							analytics_code: config.analyticsCode ? config.analyticsCode.join("\n") : '',
@@ -156,7 +156,8 @@ export function createWebUIServerExpressApp(
 					$d.l('Locate returned:', response.data);
 					res.render("robot_ui", {
 						id_robot: req.params.ID,
-						title: response.data && response.data.name ? response.data.name + " @ PHNTM Bridge" : undefined,
+						title: response.data && response.data.name ? response.data.name + ' @ ' + config.uiName : undefined,
+						ui_name: config.uiName,
 						bridge_socket_url: bridge_socket_url,
 						bridge_files_url: robot_bridge_files_url,
 						app_id: config.appId,
@@ -175,7 +176,7 @@ export function createWebUIServerExpressApp(
 					if (error.code === "ECONNABORTED") {
 						$d.err("Locating request timed out for " + idRobot + " (" + config.bridgeLocateUrl + ")");
 						res.status(408).render("error", {
-							title: 'Error 408 @ PHNTM Bridge',
+							title: 'Error 408 @ ' + config.uiName,
 							code: 408,
 							error: "Timed out locating robot on Bridge Server",
 							analytics_code: config.analyticsCode ? config.analyticsCode.join("\n") : '',
@@ -185,7 +186,7 @@ export function createWebUIServerExpressApp(
 					} else if (error.code === "ECONNREFUSED") {
 						$d.err("Locating request refused for " + idRobot + " (" + config.bridgeLocateUrl + ")");
 						res.status(403).render("error", {
-							title: 'Error 403 @ PHNTM Bridge',
+							title: 'Error 403 @ ' + config.uiName,
 							code: 403,
 							error: 'Error connecing to Bridge Server <span class="detail">Connection refused</span>',
 							analytics_code: config.analyticsCode ? config.analyticsCode.join("\n") : '',
@@ -195,7 +196,7 @@ export function createWebUIServerExpressApp(
 					} else if (error.status == 404) {
 						$d.err("Locate returned code 404 for " + idRobot + " (" + config.bridgeLocateUrl + ")");
 						res.status(404).render("error", {
-							title: 'Error 404 @ PHNTM Bridge',
+							title: 'Error 404 @ ' + config.uiName,
 							code: 404,
 							error: "Robot not found on Bridge Server",
 							analytics_code: config.analyticsCode ? config.analyticsCode.join("\n") : '',
@@ -205,9 +206,9 @@ export function createWebUIServerExpressApp(
 					} else {
 						$d.err("Error locating robot " + idRobot + " at " + config.bridgeLocateUrl + ":", error.message);
 						res.status(500).render("error", {
-							title: 'Error 500 @ PHNTM Bridge',
+							title: 'Error 500 @ ' + config.uiName,
 							code: 500,
-							error: 'Error locating robot on Bridge Server <span class="detail">Web UI seems misconfigured, server returned: ' + error.code + '</span>',
+							error: 'Error locating robot on Bridge Server <span class="detail">Phantom Remote seems misconfigured, server returned: ' + error.code + '</span>',
 							analytics_code: config.analyticsCode ? config.analyticsCode.join("\n") : '',
 							ui_git_version: uiVersion,
 							cdn_prefix: CDN_INC_PREFIX
@@ -221,7 +222,7 @@ export function createWebUIServerExpressApp(
 	// 404 handler (must be last)
 	webExpressApp.use((req: express.Request, res: express.Response) => {
 		res.status(404).render("error", {
-			title: 'Error 404 @ PHNTM Bridge',
+			title: 'Error 404 @ ' + config.uiName,
 			code: 404,
 			error: "Page not found",
 			analytics_code: config.analyticsCode ? config.analyticsCode.join("\n") : '',
